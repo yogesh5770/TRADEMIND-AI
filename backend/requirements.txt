@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+yfinance
+sqlalchemy
+pandas
+numpy
+websockets
+pydantic
+cryptography
+pytest
