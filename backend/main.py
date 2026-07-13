@@ -81,6 +81,75 @@ def run_portfolio_pnl_loop():
             print(f"Error in portfolio synchronizer loop: {e}")
         time.sleep(1.5)
 
+def run_automated_trading_loop():
+    """Loops every 5 seconds. If bot is active, fetches AI signals and executes trades."""
+    print("Background automated trading loop running...")
+    while market_engine.running:
+        try:
+            from backend.database import SessionLocal
+            db = SessionLocal()
+            try:
+                user = PortfolioManager.get_or_create_user(db)
+                if user.is_bot_active:
+                    recommendations = AIAnaEngine.generate_recommendations()
+                    for rec in recommendations:
+                        symbol = rec["symbol"]
+                        action = rec["action"]
+                        confidence = rec["confidence"]
+                        quantity = rec["quantity"]
+                        price = rec["suggested_price"]
+                        
+                        if quantity <= 0:
+                            continue
+                            
+                        # Check existing open position in DB
+                        position = db.query(models.Position).filter(
+                            models.Position.user_id == user.id,
+                            models.Position.symbol == symbol
+                        ).first()
+                        
+                        if action == "BUY" and confidence >= 0.65:
+                            # Automatically buy if we don't have an active position
+                            if not position:
+                                res = PortfolioManager.place_paper_order(
+                                    db, 
+                                    symbol=symbol, 
+                                    order_type="BUY", 
+                                    quantity=quantity,
+                                    stop_loss=rec["stop_loss"],
+                                    target=rec["target"]
+                                )
+                                if res.get("success"):
+                                    print(f"[AUTO-BOT] Automatically BOUGHT {quantity} {symbol} at Rs.{price:.2f}")
+                                    # Broadcast order placement through socket
+                                    asyncio.run(manager.broadcast({
+                                        "type": "AUTO_ORDER",
+                                        "message": f"Bought {quantity} {symbol} at Rs.{price:.2f} (Confidence: {confidence*100:.0f}%)",
+                                        "timestamp": time.time()
+                                    }))
+                                    
+                        elif action == "SELL":
+                            # Automatically sell if we have a position
+                            if position:
+                                res = PortfolioManager.place_paper_order(
+                                    db,
+                                    symbol=symbol,
+                                    order_type="SELL",
+                                    quantity=position.quantity
+                                )
+                                if res.get("success"):
+                                    print(f"[AUTO-BOT] Automatically SOLD/SQUARED-OFF {symbol} at Rs.{price:.2f}")
+                                    asyncio.run(manager.broadcast({
+                                        "type": "AUTO_ORDER",
+                                        "message": f"Sold {position.quantity} {symbol} at Rs.{price:.2f} (AI Sell Signal)",
+                                        "timestamp": time.time()
+                                    }))
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Error in automated trading loop: {e}")
+        time.sleep(5.0)
+
 # Thread listener that acts as a callback target for our data engine ticks
 def handle_live_tick(tick_info: dict):
     """Callback triggered whenever a market asset fluctuates in price."""
@@ -118,6 +187,9 @@ def startup_event():
     # Start portfolio tracking thread
     pnl_thread = threading.Thread(target=run_portfolio_pnl_loop, daemon=True)
     pnl_thread.start()
+    # Start automated trading bot loop thread
+    bot_thread = threading.Thread(target=run_automated_trading_loop, daemon=True)
+    bot_thread.start()
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -300,6 +372,16 @@ def connect_broker(conn: dict, db: Session = Depends(get_db)):
     # Dynamically sync assets from connected broker API
     market_engine.sync_with_broker(db)
     return {"status": "success", "message": f"Successfully connected to {conn['broker_name']}"}
+
+@app.post("/api/v1/portfolio/bot/toggle")
+def toggle_bot(db: Session = Depends(get_db)):
+    """Toggles the AI automated bot state on/off, clearing halt reasons if enabling."""
+    user = PortfolioManager.get_or_create_user(db)
+    user.is_bot_active = not user.is_bot_active
+    if user.is_bot_active:
+        user.halt_reason = None
+    db.commit()
+    return {"status": "success", "is_bot_active": user.is_bot_active, "halt_reason": user.halt_reason}
 
 @app.get("/api/v1/backtest")
 def run_strategy_backtest(symbol: str, strategy: str, days: int = 60):

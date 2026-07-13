@@ -107,7 +107,9 @@ export default function App() {
             });
           } else if (msg.type === 'RISK_ALERT') {
             setAlerts((prev) => [msg.message, ...prev.slice(0, 19)]);
-            // Refresh portfolio immediately to capture stop-loss sell
+            fetchPortfolio();
+          } else if (msg.type === 'AUTO_ORDER') {
+            setAlerts((prev) => [msg.message, ...prev.slice(0, 19)]);
             fetchPortfolio();
           }
         } catch (e) {
@@ -149,6 +151,24 @@ export default function App() {
   const handleExecuteRec = (rec: any) => {
     setTerminalSymbol(rec.symbol);
     setView('terminal');
+  };
+
+  const handleToggleBot = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/portfolio/bot/toggle`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPortfolio(prev => ({
+          ...prev,
+          is_bot_active: data.is_bot_active,
+          halt_reason: data.halt_reason
+        }));
+      }
+    } catch (err) {
+      console.error('Error toggling bot:', err);
+    }
   };
 
   const isBrokerConnected = portfolio.connected_brokers.length > 0;
@@ -218,6 +238,42 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: 'var(--text-dark)' }}>
             <Radio size={12} color={wsConnected ? 'var(--color-success)' : 'var(--color-danger)'} className={wsConnected ? 'animate-pulse' : ''} />
             <span>Feed status: {wsConnected ? 'WebSocket Live' : 'Disconnected'}</span>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: '600' }}>AI Auto Bot</span>
+              <button 
+                onClick={handleToggleBot}
+                style={{
+                  padding: '0.3rem 0.6rem',
+                  fontSize: '0.75rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: portfolio.is_bot_active ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)',
+                  color: portfolio.is_bot_active ? 'var(--color-success)' : 'var(--color-danger)',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem'
+                }}
+              >
+                <span style={{
+                  display: 'inline-block',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: portfolio.is_bot_active ? 'var(--color-success)' : 'var(--color-danger)'
+                }}></span>
+                {portfolio.is_bot_active ? 'Active' : 'Stopped'}
+              </button>
+            </div>
+            {portfolio.is_bot_active === false && portfolio.halt_reason && (
+              <span style={{ fontSize: '0.65rem', color: 'var(--color-danger)', lineHeight: '1.2' }}>
+                Halted: {portfolio.halt_reason}
+              </span>
+            )}
           </div>
         </div>
       </aside>
