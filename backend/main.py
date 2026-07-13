@@ -162,7 +162,7 @@ def get_candles(symbol: str):
     candles = []
     for index, row in df.iterrows():
         candles.append({
-            "time": index.strftime("%Y-%m-%d"),
+            "time": int(index.timestamp()),
             "open": float(row["Open"]),
             "high": float(row["High"]),
             "low": float(row["Low"]),

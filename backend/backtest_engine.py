@@ -10,7 +10,8 @@ class BacktestEngine:
     @staticmethod
     def run_backtest(symbol: str, strategy_name: str, days: int = 60) -> dict:
         """Executes a walk-forward simulation on real historical candles."""
-        ysym = "BTC-INR" if symbol == "BTC" else "ETH-INR" if symbol == "ETH" else f"{symbol}.NS"
+        cryptos = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
+        ysym = f"{symbol}-INR" if symbol in cryptos else f"{symbol}.NS"
         try:
             # For scalping backtests we always use short 1m/5m bars to capture frequent trades
             interval = "5m" if strategy_name == "Intraday Scalping" else "15m"

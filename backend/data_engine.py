@@ -21,6 +21,43 @@ class MarketDataEngine:
         self.thread = None
         self.active_symbols = []       # Populated dynamically by Broker API only
         
+    def _fetch_coindcx_balance(self, api_key: str, api_secret: str) -> float:
+        """Fetches the real INR wallet balance from the CoinDCX API using HMAC signature."""
+        import hmac
+        import hashlib
+        import json
+        import requests
+        
+        url = "https://api.coindcx.com/exchange/v1/users/balances"
+        body = {
+            "timestamp": int(round(time.time() * 1000))
+        }
+        
+        try:
+            json_body = json.dumps(body, separators=(',', ':'))
+            signature = hmac.new(
+                bytes(api_secret, encoding='utf-8'),
+                json_body.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            
+            headers = {
+                'Content-Type': 'application/json',
+                'X-AUTH-APIKEY': api_key,
+                'X-AUTH-SIGNATURE': signature
+            }
+            
+            res = requests.post(url, data=json_body, headers=headers, timeout=5)
+            if res.status_code == 200:
+                balances = res.json()
+                for item in balances:
+                    if item.get("currency") == "INR":
+                        return float(item.get("balance", 0.0))
+            return None
+        except Exception as e:
+            print(f"Error calling CoinDCX API: {e}")
+            return None
+
     def sync_with_broker(self, db):
         """Checks if a broker is connected and pulls the active tradable asset list from the Broker API."""
         user = db.query(models.User).filter(models.User.username == "retail_investor").first()
@@ -55,6 +92,17 @@ class MarketDataEngine:
             broker_assets = ["TATASTEEL", "NIFTYBEES", "GOLDBEES", "YESBANK", "IDEA"]
         elif conn.broker_name == "Angel One":
             broker_assets = ["TATASTEEL", "SOUTHBANK", "JPPOWER", "SUZLON"]
+        elif conn.broker_name == "CoinDCX API":
+            broker_assets = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
+            # Fetch user balance directly from the real CoinDCX API using credentials
+            real_bal = self._fetch_coindcx_balance(conn.client_id, conn.access_token)
+            if real_bal is not None:
+                user.balance = real_bal
+                user.margin = real_bal
+                db.commit()
+                print(f"Updated user balance from real CoinDCX wallet: Rs.{real_bal:.2f}")
+            else:
+                print("Could not retrieve real CoinDCX balance (mock keys or timeout). Keeping existing balance.")
         else:
             # Generic simulated broker
             broker_assets = ["TATASTEEL", "NIFTYBEES", "GOLDBEES", "YESBANK", "BTC", "ETH"]
@@ -66,7 +114,11 @@ class MarketDataEngine:
         for sym in broker_assets:
             if sym not in self.prices:
                 # Seed initial mock price
-                self.prices[sym] = 5500000.0 if sym == "BTC" else 300000.0 if sym == "ETH" else random.uniform(15.0, 200.0)
+                crypto_prices = {
+                    "BTC": 5500000.0, "ETH": 300000.0, "ADA": 30.0,
+                    "XRP": 50.0, "TRX": 10.0, "DOGE": 12.0, "SHIB": 0.0015
+                }
+                self.prices[sym] = crypto_prices.get(sym, random.uniform(15.0, 200.0))
             
             new_symbols.append(sym)
             if sym not in self.active_symbols:
@@ -77,7 +129,8 @@ class MarketDataEngine:
     def _load_symbol_data(self, sym):
         """Loads historical candles dynamically for a symbol fetched from the Broker API."""
         # Dynamic mapping to Yahoo Finance symbols
-        ysym = "BTC-INR" if sym == "BTC" else "ETH-INR" if sym == "ETH" else f"{sym}.NS"
+        cryptos = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
+        ysym = f"{sym}-INR" if sym in cryptos else f"{sym}.NS"
         
         try:
             ticker = yf.Ticker(ysym)

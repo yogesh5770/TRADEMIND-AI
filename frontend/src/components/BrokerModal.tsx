@@ -84,7 +84,7 @@ export const BrokerModal: React.FC<BrokerModalProps> = ({ isOpen, onClose, onSuc
               {[
                 { name: 'Zerodha Kite Connect', desc: 'India\'s largest retail broker', color: '#ec5b24' },
                 { name: 'Angel One SmartAPI', desc: 'Advanced API integration engine', color: '#0f72e6' },
-                { name: 'Upstox API', desc: 'Fast, secure trade executions', color: '#3f1a8c' },
+                { name: 'CoinDCX API', desc: 'Real-time crypto trading engine (100% Free API)', color: '#0052cc' },
               ].map((broker) => (
                 <button
                   key={broker.name}
@@ -118,7 +118,7 @@ export const BrokerModal: React.FC<BrokerModalProps> = ({ isOpen, onClose, onSuc
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem', color: 'var(--text-dark)', fontSize: '0.75rem' }}>
               <Shield size={14} />
-              <span>Compliant with SEBI algorithmic trading directives.</span>
+              <span>Compliant with algorithmic trading guidelines.</span>
             </div>
           </div>
         ) : (
@@ -152,13 +152,15 @@ export const BrokerModal: React.FC<BrokerModalProps> = ({ isOpen, onClose, onSuc
                 )}
 
                 <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Client ID / Username</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                    {selectedBroker === 'CoinDCX API' ? 'API Key' : 'Client ID / Username'}
+                  </label>
                   <input
                     type="text"
                     required
                     value={clientId}
                     onChange={(e) => setClientId(e.target.value)}
-                    placeholder="e.g. AB1234"
+                    placeholder={selectedBroker === 'CoinDCX API' ? 'Enter your CoinDCX API Key' : 'e.g. AB1234'}
                     style={{
                       width: '100%',
                       padding: '0.75rem',
@@ -172,13 +174,15 @@ export const BrokerModal: React.FC<BrokerModalProps> = ({ isOpen, onClose, onSuc
                 </div>
 
                 <div style={{ marginBottom: '1.5rem' }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>API Key / App Token</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                    {selectedBroker === 'CoinDCX API' ? 'API Secret Key' : 'API Key / App Token'}
+                  </label>
                   <input
                     type="password"
                     required
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter API access key token"
+                    placeholder={selectedBroker === 'CoinDCX API' ? 'Enter your CoinDCX API Secret' : 'Enter API access key token'}
                     style={{
                       width: '100%',
                       padding: '0.75rem',
