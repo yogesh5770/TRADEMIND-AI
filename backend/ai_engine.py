@@ -184,7 +184,7 @@ class AIAnaEngine:
     @staticmethod
     def analyze_symbol(sym: str) -> dict:
         data = market_engine.get_latest_data(sym)
-        if "indicators" not in data:
+        if not data or "indicators" not in data or data.get("price", 0.0) <= 0.0:
             return None
             
         # Invoke individual specialist votes
