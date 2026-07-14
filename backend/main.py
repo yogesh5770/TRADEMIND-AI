@@ -424,6 +424,10 @@ def toggle_bot(db: Session = Depends(get_db)):
     user.is_bot_active = not user.is_bot_active
     if user.is_bot_active:
         user.halt_reason = None
+        # Reset the drawdown peak to current actual portfolio value to clear legacy paper trade peaks
+        positions = db.query(models.Position).filter(models.Position.user_id == user.id).all()
+        holdings_value = sum(float(pos.current_price) * float(pos.quantity) for pos in positions if pos.current_price)
+        user.peak_value = user.balance + holdings_value
     db.commit()
     return {"status": "success", "is_bot_active": user.is_bot_active, "halt_reason": user.halt_reason}
 
