@@ -305,9 +305,17 @@ class MarketDataEngine:
                     breadth_count += 1
         market_breadth = (breadth_count / len(self.active_symbols)) * 100 if self.active_symbols else 0.0
 
+        daily_change_pct = 0.0
+        if symbol in self.daily_historical:
+            daily_df = self.daily_historical[symbol]
+            if len(daily_df) > 1:
+                prev_close = float(daily_df['Close'].iloc[-2])
+                daily_change_pct = ((self.prices[symbol] - prev_close) / prev_close) * 100
+
         return {
             "symbol": symbol,
             "price": self.prices[symbol],
+            "daily_change_pct": daily_change_pct,
             "open": float(last_row['Open']),
             "high": max(float(last_row['High']), self.prices[symbol]),
             "low": min(float(last_row['Low']), self.prices[symbol]),

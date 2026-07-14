@@ -182,27 +182,36 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ marketData, onSe
         </table>
       </div>
 
-      {/* Sector Strength */}
+      {/* Sector Strength / Movers */}
       <div className="glass-panel" style={{ padding: '1.25rem' }}>
         <h3 style={{ fontSize: '1rem', fontFamily: 'var(--font-header)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
           <BarChart2 size={16} color="var(--color-primary)" />
-          <span>Sector Rotation Momentum</span>
+          <span>Top Watchlist Movers</span>
         </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {[
-            { name: 'METAL (Tata Steel)', pct: 1.45, up: true },
-            { name: 'INDEX ETF (NiftyBees)', pct: 0.24, up: true },
-            { name: 'GOLD (GoldBees)', pct: -0.65, up: false },
-            { name: 'DIGITAL CURRENCY (BTC/ETH)', pct: 2.18, up: true },
-          ].map((sec) => (
-            <div key={sec.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>{sec.name}</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 'bold', color: sec.up ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                {sec.up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                {sec.up ? '+' : ''}{sec.pct}%
-              </span>
-            </div>
-          ))}
+          {Object.keys(marketData).length === 0 ? (
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading movers...</span>
+          ) : (
+            Object.keys(marketData)
+              .map(sym => ({
+                name: sym,
+                pct: marketData[sym].daily_change_pct || 0.0
+              }))
+              .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
+              .slice(0, 4)
+              .map((sec) => {
+                const up = sec.pct >= 0;
+                return (
+                  <div key={sec.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>{sec.name}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 'bold', color: up ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                      {up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                      {up ? '+' : ''}{sec.pct.toFixed(2)}%
+                    </span>
+                  </div>
+                );
+              })
+          )}
         </div>
       </div>
     </div>
