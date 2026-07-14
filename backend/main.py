@@ -169,7 +169,7 @@ def run_automated_trading_loop():
                 db.close()
         except Exception as e:
             print(f"Error in automated trading loop: {e}")
-        time.sleep(2.0)
+        time.sleep(1.0)
 
 # Thread listener that acts as a callback target for our data engine ticks
 def handle_live_tick(tick_info: dict):
