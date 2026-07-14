@@ -248,7 +248,7 @@ export default function App() {
             }}
           >
             <Link2 size={14} />
-            <span>{isBrokerConnected ? `Connected: ${portfolio.connected_brokers[0]}` : 'Connect Broker API'}</span>
+            <span>{isBrokerConnected ? `Connected: ${portfolio.connected_brokers[0].broker_name}` : 'Connect Broker API'}</span>
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: 'var(--text-dark)' }}>

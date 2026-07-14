@@ -164,8 +164,11 @@ class MarketDataEngine:
             if real_bal is not None:
                 user.balance = real_bal
                 user.margin = real_bal
+                user.peak_value = real_bal
+                user.is_bot_active = True
+                user.halt_reason = None
                 db.commit()
-                print(f"Updated user balance from real CoinDCX wallet: Rs.{real_bal:.2f}")
+                print(f"Updated user balance from real CoinDCX wallet: Rs.{real_bal:.2f} (Halt cleared and peak_value reset).")
             else:
                 print("Could not retrieve real CoinDCX balance (mock keys or timeout). Keeping existing balance.")
         else:

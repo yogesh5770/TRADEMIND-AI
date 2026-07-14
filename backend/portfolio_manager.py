@@ -117,11 +117,15 @@ class PortfolioManager:
             if total_cost > max_alloc:
                 # Scale quantity down to fit 95% of available balance
                 is_crypto = not symbol.endswith(".NS") and symbol not in ["NIFTY", "VIX", "TATASTEEL", "SOUTHBANK", "JPPOWER", "SUZLON", "YESBANK", "IDEA", "PNB", "BANKBARODA", "SAIL", "NHPC"]
-                quantity = round(max_alloc / current_price, 6 if is_crypto else 0)
+                if is_crypto:
+                    quantity = round(max_alloc / current_price, 6)
+                else:
+                    # For stocks, floor to nearest whole share
+                    quantity = int(max_alloc / current_price)
                 total_cost = current_price * quantity
                 
-            if quantity <= 0:
-                return {"success": False, "error": f"Insufficient balance to purchase even a fractional unit of {symbol}. Balance: Rs.{user.balance:.2f}"}
+            if quantity <= 0 or user.balance < total_cost:
+                return {"success": False, "error": f"Insufficient funds. Insufficient balance to purchase {symbol}. Balance: Rs.{user.balance:.2f}"}
             
             # --- Live API Call to Broker ---
             if conn.broker_name == "CoinDCX API":
