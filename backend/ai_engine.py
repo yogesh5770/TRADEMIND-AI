@@ -212,18 +212,18 @@ class AIAnaEngine:
         price = data["price"]
         atr = data["indicators"]["atr"]
         
-        # Expected Move & Risk calculations
-        expected_move_pct = round((atr * 2.5) / price * 100, 2)
-        risk_pct = round((atr * 1.2) / price * 100, 2)
+        # Expected Move & Risk calculations (Tightened 3.5x for High-Frequency Scalping)
+        expected_move_pct = round((atr * 0.7) / price * 100, 2)
+        risk_pct = round((atr * 0.35) / price * 100, 2)
         risk_reward = round(expected_move_pct / max(0.1, risk_pct), 1)
         
         # Set target / SL targets
         if action == "BUY":
-            stop_loss = price - (atr * 1.2)
-            target = price + (atr * 2.5)
+            stop_loss = price - (atr * 0.35)
+            target = price + (atr * 0.7)
         else:
-            stop_loss = price + (atr * 1.2)
-            target = price - (atr * 2.5)
+            stop_loss = price + (atr * 0.35)
+            target = price - (atr * 0.7)
             
         # Expected holding time estimation in minutes (simulated based on average timeframe targets)
         expected_hold_mins = int((atr / max(0.01, price * 0.001)) * 12)

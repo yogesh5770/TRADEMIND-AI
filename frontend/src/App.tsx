@@ -1,39 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Home, LineChart, ShieldCheck, Link2, LogOut, Radio, Cpu, BellRing, FlaskConical } from 'lucide-react';
-import { DashboardHome } from './components/DashboardHome';
+import { ShieldCheck, Link2, Radio, Cpu, BellRing, Terminal, Activity, TrendingUp, Play, Square, List } from 'lucide-react';
 import { MarketOverview } from './components/MarketOverview';
-import { TradingTerminal } from './components/TradingTerminal';
 import { PriceChart } from './components/PriceChart';
 import { BrokerModal } from './components/BrokerModal';
-import { ResearchLab } from './components/ResearchLab';
 
 // Auto-detects localhost vs deployed Render backend
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const WS_BASE = API_BASE.replace('https://', 'wss://').replace('http://', 'ws://');
 
 export default function App() {
-  const [view, setView] = useState<'home' | 'terminal' | 'lab'>('home');
-  const [activeSymbol, setActiveSymbol] = useState('TATASTEEL');
   const [isBrokerModalOpen, setIsBrokerModalOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
+  const [activeSymbol, setActiveSymbol] = useState('BTC');
 
   // Core Data States
   const [marketData, setMarketData] = useState<Record<string, any>>({});
   const [portfolio, setPortfolio] = useState({
-    balance: 2000.0,
-    margin: 2000.0,
+    balance: 0.0,
+    margin: 0.0,
     daily_pnl: 0.0,
-    total_value: 2000.0,
-    positions: [],
-    trades: [],
-    connected_brokers: [] as any[]
+    total_value: 0.0,
+    positions: [] as any[],
+    trades: [] as any[],
+    connected_brokers: [] as any[],
+    is_bot_active: true,
+    halt_reason: ''
   });
-  const [recommendations, setRecommendations] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<string[]>([]);
   const [tradeLogs, setTradeLogs] = useState<string[]>([]);
-
-  // Pre-fill parameters for terminal order
-  const [terminalSymbol, setTerminalSymbol] = useState('TATASTEEL');
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -45,27 +39,15 @@ export default function App() {
         const data = await res.json();
         setPortfolio(data);
         if (data.trades && data.trades.length > 0) {
-          const recentLogs = data.trades.slice(0, 10).map((t: any) => {
+          const recentLogs = data.trades.slice(0, 15).map((t: any) => {
             const timeStr = new Date(t.timestamp * 1000).toLocaleTimeString();
-            return `[${timeStr}] Auto-traded ${t.quantity} ${t.symbol} @ Rs.${t.price.toFixed(2)} (${t.order_type})`;
+            return `[${timeStr}] Auto-traded ${t.quantity.toFixed(4)} ${t.symbol} @ Rs.${t.price.toFixed(2)} (${t.order_type})`;
           });
           setTradeLogs(recentLogs);
         }
       }
     } catch (err) {
       console.error('Error fetching portfolio:', err);
-    }
-  };
-
-  const fetchRecommendations = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/ai/recommendations`);
-      if (res.ok) {
-        const data = await res.json();
-        setRecommendations(data);
-      }
-    } catch (err) {
-      console.error('Error fetching recommendations:', err);
     }
   };
 
@@ -81,19 +63,10 @@ export default function App() {
     }
   };
 
-  // Auto-switch price chart to first active symbol if the current one is delisted/swapped
+  // Setup WebSocket price streams and periodic polling
   useEffect(() => {
-    const symbols = Object.keys(marketData);
-    if (symbols.length > 0 && !symbols.includes(activeSymbol)) {
-      setActiveSymbol(symbols[0]);
-    }
-  }, [marketData, activeSymbol]);
-
-  // Setup live websocket price stream
-  useEffect(() => {
-    fetchMarketSummary();
     fetchPortfolio();
-    fetchRecommendations();
+    fetchMarketSummary();
 
     const connectWebSocket = () => {
       const socket = new WebSocket(`${WS_BASE}/api/v1/ws`);
@@ -146,28 +119,25 @@ export default function App() {
 
     connectWebSocket();
 
-    // Poll portfolio and recommendations periodically
+    // Poll portfolio and market data
     const pollInterval = setInterval(() => {
       fetchPortfolio();
       fetchMarketSummary();
     }, 2000);
 
-    const recInterval = setInterval(() => {
-      fetchRecommendations();
-    }, 15000);
-
     return () => {
       if (wsRef.current) wsRef.current.close();
       clearInterval(pollInterval);
-      clearInterval(recInterval);
     };
   }, []);
 
-  // Action callback when clicking "Place Trade" on a recommendation card
-  const handleExecuteRec = (rec: any) => {
-    setTerminalSymbol(rec.symbol);
-    setView('terminal');
-  };
+  // Auto-switch price chart to first active symbol
+  useEffect(() => {
+    const symbols = Object.keys(marketData);
+    if (symbols.length > 0 && !symbols.includes(activeSymbol)) {
+      setActiveSymbol(symbols[0]);
+    }
+  }, [marketData]);
 
   const handleToggleBot = async () => {
     try {
@@ -188,216 +158,223 @@ export default function App() {
   };
 
   const isBrokerConnected = portfolio.connected_brokers.length > 0;
+  const connectedBrokerName = isBrokerConnected ? portfolio.connected_brokers[0].broker_name : 'No Broker';
 
   return (
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column' }}>
       
-      {/* Mobile Top Header */}
-      <div className="mobile-top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Cpu size={22} color="var(--color-primary)" />
-          <span style={{ fontWeight: '800', fontFamily: 'var(--font-header)', fontSize: '1rem' }}>TradeMind AI</span>
-        </div>
-        <button 
-          onClick={() => setIsBrokerModalOpen(true)}
-          style={{
-            padding: '0.35rem 0.6rem',
-            fontSize: '0.7rem',
-            borderRadius: '8px',
-            border: '1px solid ' + (isBrokerConnected ? 'var(--color-success)' : 'var(--border-color)'),
-            backgroundColor: isBrokerConnected ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)',
-            color: isBrokerConnected ? 'var(--color-success)' : 'var(--text-main)',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem'
-          }}
-        >
-          <Link2 size={12} />
-          <span>{isBrokerConnected ? 'Connected' : 'Connect'}</span>
-        </button>
-      </div>
-
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-      {/* Sidebar Panel */}
-      <aside className="sidebar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2.5rem', paddingLeft: '0.5rem' }}>
-          <Cpu size={28} color="var(--color-primary)" />
-          <h2 style={{ fontFamily: 'var(--font-header)', fontSize: '1.25rem', fontWeight: '800' }}>
-            TradeMind <span style={{ color: 'var(--color-primary)' }}>AI</span>
+      {/* Top Header Navigation */}
+      <header className="glass-panel" style={{
+        margin: '1rem',
+        padding: '0.85rem 1.25rem',
+        borderRadius: '12px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        zIndex: 100
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Cpu size={24} color="var(--color-primary)" className="animate-pulse" />
+          <h2 style={{ fontFamily: 'var(--font-header)', fontSize: '1.2rem', fontWeight: '800' }}>
+            TradeMind <span style={{ color: 'var(--color-primary)' }}>AI</span> <span style={{ fontSize: '0.75rem', color: 'var(--color-success)', fontWeight: 'bold', marginLeft: '0.5rem', border: '1px solid var(--color-success-glow)', padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'var(--color-success-glow)' }}>24/7 Scalper</span>
           </h2>
         </div>
 
-        <nav style={{ flex: 1 }}>
-          <button 
-            onClick={() => setView('home')} 
-            className={`nav-link ${view === 'home' ? 'active' : ''}`}
-            style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
-          >
-            <Home size={18} />
-            <span>Dashboard</span>
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {/* Feed Socket Status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <Radio size={14} color={wsConnected ? 'var(--color-success)' : 'var(--color-danger)'} className={wsConnected ? 'animate-pulse' : ''} />
+            <span style={{ fontWeight: '500' }}>{wsConnected ? 'Feed Live' : 'Offline'}</span>
+          </div>
 
-          <button 
-            onClick={() => setView('terminal')} 
-            className={`nav-link ${view === 'terminal' ? 'active' : ''}`}
-            style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
-          >
-            <LineChart size={18} />
-            <span>Trading Terminal</span>
-          </button>
-
-          <button 
-            onClick={() => setView('lab')} 
-            className={`nav-link ${view === 'lab' ? 'active' : ''}`}
-            style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
-          >
-            <FlaskConical size={18} />
-            <span>Research Lab</span>
-          </button>
-        </nav>
-
-        {/* Broker connector state display */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+          {/* Broker Status */}
           <button 
             onClick={() => setIsBrokerModalOpen(true)}
             className="btn-outline"
             style={{
-              width: '100%',
-              fontSize: '0.8rem',
+              fontSize: '0.75rem',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              padding: '0.6rem 0.5rem',
+              gap: '0.4rem',
+              padding: '0.4rem 0.8rem',
               borderColor: isBrokerConnected ? 'var(--color-success)' : 'var(--border-color)',
               color: isBrokerConnected ? 'var(--color-success)' : 'var(--text-main)',
             }}
           >
-            <Link2 size={14} />
-            <span>{isBrokerConnected ? `Connected: ${portfolio.connected_brokers[0].broker_name}` : 'Connect Broker API'}</span>
+            <Link2 size={12} />
+            <span>{isBrokerConnected ? `Connected: ${connectedBrokerName}` : 'Connect Broker'}</span>
           </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: 'var(--text-dark)' }}>
-            <Radio size={12} color={wsConnected ? 'var(--color-success)' : 'var(--color-danger)'} className={wsConnected ? 'animate-pulse' : ''} />
-            <span>Feed status: {wsConnected ? 'WebSocket Live' : 'Disconnected'}</span>
-          </div>
-
-          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: '600' }}>AI Auto Bot</span>
-              <button 
-                onClick={handleToggleBot}
-                style={{
-                  padding: '0.3rem 0.6rem',
-                  fontSize: '0.75rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: portfolio.is_bot_active ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)',
-                  color: portfolio.is_bot_active ? 'var(--color-success)' : 'var(--color-danger)',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem'
-                }}
-              >
-                <span style={{
-                  display: 'inline-block',
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  backgroundColor: portfolio.is_bot_active ? 'var(--color-success)' : 'var(--color-danger)'
-                }}></span>
-                {portfolio.is_bot_active ? 'Active' : 'Stopped'}
-              </button>
-            </div>
-            {portfolio.is_bot_active === false && portfolio.halt_reason && (
-              <span style={{ fontSize: '0.65rem', color: 'var(--color-danger)', lineHeight: '1.2' }}>
-                Halted: {portfolio.halt_reason}
-              </span>
-            )}
-          </div>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Panel Content */}
-      <main className="main-content">
+      {/* Main Single-Screen Grid */}
+      <main style={{ padding: '0 1rem 1rem 1rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
         
-        {/* Header Bar */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <div>
-            <h1 style={{ fontSize: '1.75rem', fontFamily: 'var(--font-header)', fontWeight: 800 }}>
-              {view === 'home' ? 'Research & Control Desk' : view === 'terminal' ? 'Paper Trading Room' : 'AI Laboratory'}
-            </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              {view === 'lab' 
-                ? 'Backtest strategies and review Win Rates, Profit Factors, and Sharpe Ratios historically.' 
-                : 'Evidence-based risk assistant for Indian retail investors. Feed Source: yfinance (Prototyping Feed).'}
+        {/* Drawdown Risk Suspend Banner */}
+        {portfolio.is_bot_active === false && (
+          <div 
+            className="glass-panel" 
+            style={{ 
+              borderColor: 'var(--color-danger)', 
+              background: 'rgba(239, 68, 68, 0.05)', 
+              marginBottom: '1rem',
+              padding: '1rem' 
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-danger)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+              <span>AUTOMATED RISK HALT ACTIVATED</span>
+            </div>
+            <p style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>
+              Reason: {portfolio.halt_reason || "Drawdown thresholds exceeded."}
             </p>
           </div>
+        )}
 
-          {/* Quick Info Alerts status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.75rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-              <ShieldCheck size={16} color="var(--color-success)" />
-              <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Risk Safeguards Active</span>
-            </div>
-            {alerts.length > 0 && (
-              <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setView('home')}>
-                <BellRing size={20} color="var(--color-danger)" className="animate-bounce" />
-                <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: 'var(--color-danger)', color: '#fff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '50%', fontWeight: 'bold' }}>
-                  {alerts.length}
-                </span>
-              </div>
-            )}
-          </div>
-        </header>
-
-        {/* Dashboard Grid Layout */}
-        {view === 'lab' ? (
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <ResearchLab />
-          </div>
-        ) : (
-          <div className="dash-grid">
+        <div className="dash-grid" style={{ marginTop: 0, flex: 1 }}>
+          
+          {/* Left Column (col-8) */}
+          <div className="col-8" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             
-            {/* Main Left Section: Charts or Order Terminal */}
-            <div className="col-8" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* Giant Balance and Core Metrics Card */}
+            <div className="glass-panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', padding: '1.5rem' }}>
+              <div className="metric-card" style={{ borderRight: '1px solid var(--border-color)', paddingRight: '1rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500' }}>Live Wallet Balance</span>
+                <span className="metric-value" style={{ color: 'var(--text-main)' }}>
+                  ₹{portfolio.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--color-success)', fontWeight: 'bold' }}>CoinDCX Live Cash</span>
+              </div>
+
+              <div className="metric-card" style={{ borderRight: '1px solid var(--border-color)', paddingRight: '1rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500' }}>Today's Scalping P&L</span>
+                <span className="metric-value" style={{ color: portfolio.daily_pnl >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                  ₹{portfolio.daily_pnl >= 0 ? '+' : ''}{portfolio.daily_pnl.toFixed(2)}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Real-time floating gains</span>
+              </div>
+
+              <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', justifySelf: 'center', alignSelf: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '0.35rem' }}>24/7 AI Scalper Bot</span>
+                <button 
+                  onClick={handleToggleBot}
+                  className="btn-primary"
+                  style={{
+                    backgroundColor: portfolio.is_bot_active ? 'var(--color-success)' : 'var(--color-danger)',
+                    padding: '0.4rem 1.25rem',
+                    fontSize: '0.8rem',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                >
+                  {portfolio.is_bot_active ? <Activity size={14} /> : <Square size={14} />}
+                  <span>{portfolio.is_bot_active ? 'ACTIVE & SCALPING' : 'BOT STOPPED'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Price Chart */}
+            <PriceChart symbol={activeSymbol} />
+
+            {/* Live Trade Execution Console */}
+            <div className="glass-panel" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Terminal size={18} color="var(--color-primary)" />
+                  <h3 style={{ fontSize: '0.95rem', fontFamily: 'var(--font-header)' }}>Live Trade Execution Console</h3>
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Second-by-Second Updates</span>
+              </div>
+
+              <div 
+                style={{
+                  backgroundColor: '#05070a',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-color)',
+                  padding: '0.85rem',
+                  fontFamily: 'monospace',
+                  fontSize: '0.75rem',
+                  color: 'var(--color-success)',
+                  height: '140px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.35rem'
+                }}
+              >
+                {tradeLogs.length === 0 ? (
+                  <span style={{ color: 'var(--text-dark)', fontStyle: 'italic' }}>
+                    Scanning all 340+ active markets on CoinDCX... Waiting to execute high-frequency trade entries.
+                  </span>
+                ) : (
+                  tradeLogs.map((log, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start' }}>
+                      <span style={{ color: 'var(--text-dark)' }}>&gt;</span>
+                      <span>{log}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Right Column (col-4) */}
+          <div className="col-4" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            
+            {/* Active Scalping Holdings */}
+            <div className="glass-panel" style={{ padding: '1.25rem' }}>
+              <h3 style={{ fontSize: '0.95rem', fontFamily: 'var(--font-header)', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <TrendingUp size={16} color="var(--color-primary)" />
+                <span>Active Scalp Positions ({portfolio.positions.length})</span>
+              </h3>
               
-              {/* Display TradingView Candlestick Chart */}
-              <PriceChart symbol={activeSymbol} />
-              
-              {/* Display active view */}
-              {view === 'home' ? (
-                <DashboardHome 
-                  portfolio={portfolio}
-                  recommendations={recommendations}
-                  alerts={alerts}
-                  tradeLogs={tradeLogs}
-                  onExecuteRecommendation={handleExecuteRec}
-                />
+              {portfolio.positions.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textAlign: 'center', padding: '1rem 0' }}>
+                  No active holdings. Bot is scanning for entry setups.
+                </p>
               ) : (
-                <TradingTerminal 
-                  portfolio={portfolio}
-                  selectedSymbol={terminalSymbol}
-                  onOrderSuccess={fetchPortfolio}
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: '180px', overflowY: 'auto' }}>
+                  {portfolio.positions.map((pos) => {
+                    const profitLoss = pos.pnl;
+                    return (
+                      <div key={pos.symbol} style={{
+                        padding: '0.6rem',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <span style={{ fontWeight: 'bold', fontSize: '0.8rem', display: 'block' }}>{pos.symbol}</span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Qty: {pos.quantity.toFixed(4)}</span>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '0.8rem', display: 'block', fontWeight: '500' }}>₹{pos.avg_price.toFixed(2)}</span>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: profitLoss >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                            {profitLoss >= 0 ? '+' : ''}₹{profitLoss.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
-            {/* Sidebar Right Section: Watchlist & Market overview */}
-            <div className="col-4">
-              <MarketOverview 
-                marketData={marketData}
-                activeSymbol={activeSymbol}
-                onSelectSymbol={setActiveSymbol}
-              />
-            </div>
+            {/* Watchlist */}
+            <MarketOverview 
+              marketData={marketData}
+              activeSymbol={activeSymbol}
+              onSelectSymbol={setActiveSymbol}
+            />
 
           </div>
-        )}
+
+        </div>
       </main>
 
       {/* Broker connection OAuth dialog */}
@@ -406,23 +383,6 @@ export default function App() {
         onClose={() => setIsBrokerModalOpen(false)}
         onSuccess={fetchPortfolio}
       />
-      </div>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="mobile-bottom-nav">
-        <button onClick={() => setView('home')} className={`mobile-nav-btn ${view === 'home' ? 'active' : ''}`}>
-          <Home size={20} />
-          <span>Dashboard</span>
-        </button>
-        <button onClick={() => setView('terminal')} className={`mobile-nav-btn ${view === 'terminal' ? 'active' : ''}`}>
-          <LineChart size={20} />
-          <span>Terminal</span>
-        </button>
-        <button onClick={() => setView('lab')} className={`mobile-nav-btn ${view === 'lab' ? 'active' : ''}`}>
-          <FlaskConical size={20} />
-          <span>Research Lab</span>
-        </button>
-      </div>
       
     </div>
   );

@@ -116,7 +116,7 @@ def run_automated_trading_loop():
                             models.Position.symbol == symbol
                         ).first()
                         
-                        if action == "BUY" and confidence >= 0.65:
+                        if action == "BUY" and confidence >= 0.50:
                             # Automatically buy if we don't have an active position
                             if not position:
                                 res = PortfolioManager.place_paper_order(
@@ -156,7 +156,7 @@ def run_automated_trading_loop():
                 db.close()
         except Exception as e:
             print(f"Error in automated trading loop: {e}")
-        time.sleep(5.0)
+        time.sleep(2.0)
 
 # Thread listener that acts as a callback target for our data engine ticks
 def handle_live_tick(tick_info: dict):

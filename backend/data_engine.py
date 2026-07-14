@@ -356,7 +356,8 @@ class MarketDataEngine:
             daily_df = self.daily_historical[symbol]
             if len(daily_df) > 1:
                 prev_close = float(daily_df['Close'].iloc[-2])
-                daily_change_pct = ((self.prices[symbol] - prev_close) / prev_close) * 100
+                if prev_close > 0.0:
+                    daily_change_pct = ((self.prices[symbol] - prev_close) / prev_close) * 100
 
         return {
             "symbol": symbol,
