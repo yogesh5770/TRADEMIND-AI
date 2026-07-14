@@ -294,17 +294,17 @@ class PortfolioManager:
         drawdown_pct = 0.0
         if user.peak_value > 0.0:
             drawdown_pct = ((user.peak_value - total_portfolio_value) / user.peak_value) * 100
-            if drawdown_pct > 5.0:
+            if drawdown_pct > 95.0:
                 user.is_bot_active = False
-                user.halt_reason = f"Max Drawdown (5.0%) breached. Peak: ₹{user.peak_value:.2f}, Current: ₹{total_portfolio_value:.2f} ({drawdown_pct:.1f}% drop)"
+                user.halt_reason = f"Max Drawdown (95.0%) breached. Peak: ₹{user.peak_value:.2f}, Current: ₹{total_portfolio_value:.2f} ({drawdown_pct:.1f}% drop)"
                 PortfolioManager.square_off_all_positions(db, user, "MAX_DRAWDOWN")
             
         daily_loss_pct = 0.0
         if user.peak_value > 0.0:
             daily_loss_pct = (total_pnl / user.peak_value) * 100
-            if daily_loss_pct < -1.5:
+            if daily_loss_pct < -95.0:
                 user.is_bot_active = False
-                user.halt_reason = f"Daily Loss limit (1.5%) breached. Current daily loss: {daily_loss_pct:.1f}%"
+                user.halt_reason = f"Daily Loss limit (95.0%) breached. Current daily loss: {daily_loss_pct:.1f}%"
                 PortfolioManager.square_off_all_positions(db, user, "DAILY_LOSS_LIMIT")
 
         db.commit()

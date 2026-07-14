@@ -106,6 +106,12 @@ def run_automated_trading_loop():
             try:
                 user = PortfolioManager.get_or_create_user(db)
                 if user.is_bot_active:
+                    # Broadcast real-time AI scanning heartbeat to the website console
+                    asyncio.run(manager.broadcast({
+                        "type": "AUTO_ORDER",
+                        "message": f"AI Consensus Engine scanning {len(market_engine.active_symbols)} CoinDCX assets... No signals. Re-evaluating setups.",
+                        "timestamp": time.time()
+                    }))
                     recommendations = AIAnaEngine.generate_recommendations()
                     for rec in recommendations:
                         symbol = rec["symbol"]
