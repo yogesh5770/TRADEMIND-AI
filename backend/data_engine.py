@@ -69,8 +69,8 @@ class MarketDataEngine:
                 markets = res.json()
                 inr_assets = []
                 for m in markets:
-                    if m.get("target_currency_short_name") == "INR" and m.get("status") == "active":
-                        base_coin = m.get("base_currency_short_name")
+                    if m.get("base_currency_short_name") == "INR" and m.get("status") == "active":
+                        base_coin = m.get("target_currency_short_name")
                         if base_coin and base_coin not in inr_assets:
                             inr_assets.append(base_coin)
                 popular = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB", "SOL", "DOT", "MATIC", "LINK", "LTC", "BCH", "UNI", "AVAX", "ATOM", "ETC", "ALGO", "NEAR", "FIL"]

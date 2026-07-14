@@ -112,9 +112,16 @@ class PortfolioManager:
                 }
 
         if order_type == "BUY":
-            # Check balance
-            if user.balance < total_cost:
-                return {"success": False, "error": f"Insufficient funds. Required: Rs.{total_cost:.2f}, Balance: Rs.{user.balance:.2f}"}
+            # Auto-scale quantity if total cost exceeds available balance
+            max_alloc = user.balance * 0.95
+            if total_cost > max_alloc:
+                # Scale quantity down to fit 95% of available balance
+                is_crypto = not symbol.endswith(".NS") and symbol not in ["NIFTY", "VIX", "TATASTEEL", "SOUTHBANK", "JPPOWER", "SUZLON", "YESBANK", "IDEA", "PNB", "BANKBARODA", "SAIL", "NHPC"]
+                quantity = round(max_alloc / current_price, 6 if is_crypto else 0)
+                total_cost = current_price * quantity
+                
+            if quantity <= 0:
+                return {"success": False, "error": f"Insufficient balance to purchase even a fractional unit of {symbol}. Balance: Rs.{user.balance:.2f}"}
             
             # --- Live API Call to Broker ---
             if conn.broker_name == "CoinDCX API":
