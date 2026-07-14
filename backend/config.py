@@ -26,5 +26,9 @@ class Settings:
         "TATASTEEL", "YESBANK", "IDEA", "SUZLON", "JPPOWER",
         "SOUTHBANK", "PNB", "BANKBARODA", "SAIL", "NHPC"
     ]
+    
+    # CoinDCX API Keys configuration (Hardcoded as default broker credentials)
+    COINDCX_API_KEY: str = os.getenv("COINDCX_API_KEY", "01ede1c43c0a2fa1457a1b0b18cb8cbf5a8529ff5580737b")
+    COINDCX_API_SECRET: str = os.getenv("COINDCX_API_SECRET", "e12a1a098d71981df6146a7cf4c144509dc9ee78a4aca3eeac0a9374a743cdd0")
 
 settings = Settings()

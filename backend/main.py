@@ -179,6 +179,35 @@ def startup_event():
     # Sync active symbols from database connections
     db = next(get_db())
     try:
+        from backend.config import settings
+        from backend.portfolio_manager import PortfolioManager
+        user = PortfolioManager.get_or_create_user(db)
+        
+        # Auto-seed or update CoinDCX API connection on startup with hardcoded environment keys
+        conn = db.query(models.BrokerConnection).filter(
+            models.BrokerConnection.user_id == user.id,
+            models.BrokerConnection.broker_name == "CoinDCX API"
+        ).first()
+        
+        if not conn:
+            conn = models.BrokerConnection(
+                user_id=user.id,
+                broker_name="CoinDCX API",
+                client_id=settings.COINDCX_API_KEY,
+                access_token=settings.COINDCX_API_SECRET,
+                is_active=True
+            )
+            db.add(conn)
+            db.commit()
+            print("Successfully seeded active CoinDCX API connection on startup.")
+        else:
+            if conn.client_id != settings.COINDCX_API_KEY or conn.access_token != settings.COINDCX_API_SECRET or not conn.is_active:
+                conn.client_id = settings.COINDCX_API_KEY
+                conn.access_token = settings.COINDCX_API_SECRET
+                conn.is_active = True
+                db.commit()
+                print("Successfully updated active CoinDCX API connection on startup.")
+                
         market_engine.sync_with_broker(db)
     finally:
         db.close()
