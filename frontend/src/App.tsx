@@ -30,6 +30,7 @@ export default function App() {
   });
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<string[]>([]);
+  const [tradeLogs, setTradeLogs] = useState<string[]>([]);
 
   // Pre-fill parameters for terminal order
   const [terminalSymbol, setTerminalSymbol] = useState('TATASTEEL');
@@ -43,6 +44,13 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setPortfolio(data);
+        if (data.trades && data.trades.length > 0) {
+          const recentLogs = data.trades.slice(0, 10).map((t: any) => {
+            const timeStr = new Date(t.timestamp * 1000).toLocaleTimeString();
+            return `[${timeStr}] Auto-traded ${t.quantity} ${t.symbol} @ Rs.${t.price.toFixed(2)} (${t.order_type})`;
+          });
+          setTradeLogs(recentLogs);
+        }
       }
     } catch (err) {
       console.error('Error fetching portfolio:', err);
@@ -117,7 +125,7 @@ export default function App() {
             setAlerts((prev) => [msg.message, ...prev.slice(0, 19)]);
             fetchPortfolio();
           } else if (msg.type === 'AUTO_ORDER') {
-            setAlerts((prev) => [msg.message, ...prev.slice(0, 19)]);
+            setTradeLogs((prev) => [msg.message, ...prev.slice(0, 29)]);
             fetchPortfolio();
           }
         } catch (e) {
@@ -240,7 +248,7 @@ export default function App() {
             }}
           >
             <Link2 size={14} />
-            <span>{isBrokerConnected ? 'Broker Connected' : 'Connect Broker API'}</span>
+            <span>{isBrokerConnected ? `Connected: ${portfolio.connected_brokers[0]}` : 'Connect Broker API'}</span>
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: 'var(--text-dark)' }}>
@@ -339,6 +347,7 @@ export default function App() {
                   portfolio={portfolio}
                   recommendations={recommendations}
                   alerts={alerts}
+                  tradeLogs={tradeLogs}
                   onExecuteRecommendation={handleExecuteRec}
                 />
               ) : (

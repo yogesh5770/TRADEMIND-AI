@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Compass, ChevronDown, ChevronUp, Play, Cpu, Activity, ThumbsUp, ThumbsDown, CircleSlash } from 'lucide-react';
+import { ShieldAlert, Compass, ChevronDown, ChevronUp, Play, Cpu, Activity, ThumbsUp, ThumbsDown, CircleSlash, Terminal } from 'lucide-react';
 
 interface DashboardHomeProps {
   portfolio: {
@@ -12,6 +12,7 @@ interface DashboardHomeProps {
   };
   recommendations: any[];
   alerts: string[];
+  tradeLogs: string[];
   onExecuteRecommendation: (rec: any) => void;
 }
 
@@ -19,6 +20,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   portfolio,
   recommendations,
   alerts,
+  tradeLogs,
   onExecuteRecommendation,
 }) => {
   const [expandedRecId, setExpandedRecId] = useState<string | null>(null);
@@ -319,6 +321,48 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             })}
           </div>
         )}
+      </div>
+
+      {/* Live Trade Execution Console */}
+      <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Terminal size={20} color="var(--color-primary)" />
+            <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-header)' }}>Live Trade Execution Console</h3>
+          </div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-dark)' }}>Dynamic Broker Logs</span>
+        </div>
+
+        <div 
+          style={{
+            backgroundColor: '#05070a',
+            borderRadius: '12px',
+            border: '1px solid var(--border-color)',
+            padding: '1rem',
+            fontFamily: 'monospace',
+            fontSize: '0.8rem',
+            color: 'var(--color-success)',
+            minHeight: '120px',
+            maxHeight: '200px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.4rem'
+          }}
+        >
+          {tradeLogs.length === 0 ? (
+            <span style={{ color: 'var(--text-dark)', fontStyle: 'italic' }}>
+              No trades placed yet. The bot is actively scanning for opportunities matching your capital profile...
+            </span>
+          ) : (
+            tradeLogs.map((log, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <span style={{ color: 'var(--text-dark)' }}>&gt;</span>
+                <span>{log}</span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
     </div>

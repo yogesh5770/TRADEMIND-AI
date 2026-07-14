@@ -103,7 +103,13 @@ class MarketDataEngine:
                         })
                 
                 scored_assets.sort(key=lambda x: x["volume"], reverse=True)
-                top_60 = [item["symbol"] for item in scored_assets[:60]]
+                top_60 = []
+                for item in scored_assets:
+                    sym = item["symbol"]
+                    if sym not in top_60:
+                        top_60.append(sym)
+                    if len(top_60) >= 60:
+                        break
                 
                 # Always ensure core cryptos are included in active catalog
                 for core in ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]:
