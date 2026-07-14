@@ -379,6 +379,21 @@ class PortfolioManager:
             if not curr_price:
                 continue
                 
+            # Dynamic Trailing Stop Loss (TSL) update
+            if trade.stop_loss and trade.price > 0:
+                if trade.order_type == "BUY" and curr_price > trade.price:
+                    sl_distance = trade.price - trade.stop_loss
+                    new_sl = curr_price - sl_distance
+                    if new_sl > trade.stop_loss:
+                        trade.stop_loss = new_sl
+                        db.commit()
+                elif trade.order_type == "SELL" and curr_price < trade.price:
+                    sl_distance = trade.stop_loss - trade.price
+                    new_sl = curr_price + sl_distance
+                    if new_sl < trade.stop_loss:
+                        trade.stop_loss = new_sl
+                        db.commit()
+                
             hit_sl = trade.stop_loss and ((trade.order_type == "BUY" and curr_price <= trade.stop_loss) or 
                                           (trade.order_type == "SELL" and curr_price >= trade.stop_loss))
             hit_target = trade.target and ((trade.order_type == "BUY" and curr_price >= trade.target) or 
