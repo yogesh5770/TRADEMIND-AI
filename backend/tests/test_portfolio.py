@@ -16,6 +16,28 @@ def db_session():
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:
+        # Pre-seed user and active broker connection so tests run live execution branches
+        user = models.User(
+            username="retail_investor", 
+            balance=2000.0, 
+            margin=2000.0, 
+            daily_pnl=0.0,
+            peak_value=2000.0,
+            is_bot_active=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        conn = models.BrokerConnection(
+            user_id=user.id,
+            broker_name="Angel One",
+            client_id="mock_client",
+            access_token="mock_token",
+            is_active=True
+        )
+        db.add(conn)
+        db.commit()
         yield db
     finally:
         db.close()
@@ -63,7 +85,7 @@ def test_place_paper_order_sell_success(db_session):
     # Sell 5 of those shares
     result = PortfolioManager.place_paper_order(db_session, "TATASTEEL", "SELL", 5)
     assert result["success"] is True
-    assert "Successfully sold" in result["message"]
+    assert "Successfully placed live order: Sold" in result["message"]
     
     # Verify remaining position
     pos = db_session.query(models.Position).filter(models.Position.symbol == "TATASTEEL").first()

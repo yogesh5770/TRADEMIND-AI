@@ -20,6 +20,7 @@ class MarketDataEngine:
         self.running = False
         self.thread = None
         self.active_symbols = []       # Populated dynamically by Broker API only
+        self.cryptos = {"BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"}
         
     def _fetch_coindcx_balance(self, api_key: str, api_secret: str) -> float:
         """Fetches the real INR wallet balance from the CoinDCX API using HMAC signature."""
@@ -58,6 +59,30 @@ class MarketDataEngine:
             print(f"Error calling CoinDCX API: {e}")
             return None
 
+    def _fetch_coindcx_markets(self) -> list[str]:
+        """Fetches all active INR-quote markets from CoinDCX API dynamically."""
+        import requests
+        url = "https://api.coindcx.com/exchange/v1/markets_details"
+        try:
+            res = requests.get(url, timeout=5)
+            if res.status_code == 200:
+                markets = res.json()
+                inr_assets = []
+                for m in markets:
+                    if m.get("target_currency_short_name") == "INR" and m.get("status") == "active":
+                        base_coin = m.get("base_currency_short_name")
+                        if base_coin and base_coin not in inr_assets:
+                            inr_assets.append(base_coin)
+                popular = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB", "SOL", "DOT", "MATIC", "LINK", "LTC", "BCH", "UNI", "AVAX", "ATOM", "ETC", "ALGO", "NEAR", "FIL"]
+                matched = [c for c in inr_assets if c in popular]
+                if len(matched) < 10:
+                    matched = inr_assets[:20]
+                return matched
+            return ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
+        except Exception as e:
+            print(f"Error fetching CoinDCX markets: {e}")
+            return ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
+
     def sync_with_broker(self, db):
         """Checks if a broker is connected and pulls the active tradable asset list from the Broker API."""
         user = db.query(models.User).filter(models.User.username == "retail_investor").first()
@@ -93,7 +118,8 @@ class MarketDataEngine:
         elif conn.broker_name == "Angel One":
             broker_assets = ["TATASTEEL", "SOUTHBANK", "JPPOWER", "SUZLON"]
         elif conn.broker_name == "CoinDCX API":
-            broker_assets = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
+            broker_assets = self._fetch_coindcx_markets()
+            self.cryptos = set(broker_assets)
             # Fetch user balance directly from the real CoinDCX API using credentials
             real_bal = self._fetch_coindcx_balance(conn.client_id, conn.access_token)
             if real_bal is not None:
@@ -129,18 +155,24 @@ class MarketDataEngine:
     def _load_symbol_data(self, sym):
         """Loads historical candles dynamically for a symbol fetched from the Broker API."""
         # Dynamic mapping to Yahoo Finance symbols
-        cryptos = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
-        ysym = f"{sym}-INR" if sym in cryptos else f"{sym}.NS"
+        is_crypto = sym in self.cryptos
+        ysym = f"{sym}-USD" if is_crypto else f"{sym}.NS"
         
         try:
             ticker = yf.Ticker(ysym)
             df_daily = ticker.history(period="3mo", interval="1d")
             if not df_daily.empty:
+                if is_crypto:
+                    for col in ["Open", "High", "Low", "Close"]:
+                        df_daily[col] = df_daily[col] * 83.5
                 df_daily['SMA_20'] = df_daily['Close'].rolling(window=20).mean()
                 self.daily_historical[sym] = df_daily.ffill().bfill()
             
             df_intraday = ticker.history(period="1d", interval="1m")
             if not df_intraday.empty:
+                if is_crypto:
+                    for col in ["Open", "High", "Low", "Close"]:
+                        df_intraday[col] = df_intraday[col] * 83.5
                 df_intraday = self.calculate_advanced_indicators(df_intraday)
                 self.historical_data[sym] = df_intraday
                 self.prices[sym] = float(df_intraday['Close'].iloc[-1])

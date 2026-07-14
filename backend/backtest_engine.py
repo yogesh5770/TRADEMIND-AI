@@ -11,7 +11,8 @@ class BacktestEngine:
     def run_backtest(symbol: str, strategy_name: str, days: int = 60) -> dict:
         """Executes a walk-forward simulation on real historical candles."""
         cryptos = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
-        ysym = f"{symbol}-INR" if symbol in cryptos else f"{symbol}.NS"
+        is_crypto = symbol in cryptos
+        ysym = f"{symbol}-USD" if is_crypto else f"{symbol}.NS"
         try:
             # For scalping backtests we always use short 1m/5m bars to capture frequent trades
             interval = "5m" if strategy_name == "Intraday Scalping" else "15m"
@@ -21,6 +22,10 @@ class BacktestEngine:
             if df.empty or len(df) < 50:
                 return BacktestEngine.get_fallback_metrics(symbol, strategy_name)
                 
+            if is_crypto:
+                for col in ["Open", "High", "Low", "Close"]:
+                    df[col] = df[col] * 83.5
+                    
             engine = MarketDataEngine()
             df = engine.calculate_advanced_indicators(df)
             

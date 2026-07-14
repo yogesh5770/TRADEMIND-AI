@@ -24,23 +24,81 @@ class PortfolioManager:
         return user
 
     @staticmethod
+    def _execute_coindcx_order(api_key: str, api_secret: str, symbol: str, side: str, quantity: float) -> dict:
+        """Executes a real market order on the CoinDCX exchange using HMAC signature."""
+        import hmac
+        import hashlib
+        import json
+        import requests
+        import time
+        
+        # CoinDCX expects market pairs like "BTCINR" (no hyphen)
+        market_pair = f"{symbol}INR"
+        
+        url = "https://api.coindcx.com/exchange/v1/orders/create"
+        body = {
+            "side": side.lower(),
+            "order_type": "market_order",
+            "market": market_pair,
+            "total_quantity": quantity,
+            "timestamp": int(round(time.time() * 1000))
+        }
+        
+        try:
+            json_body = json.dumps(body, separators=(',', ':'))
+            signature = hmac.new(
+                bytes(api_secret, encoding='utf-8'),
+                json_body.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            
+            headers = {
+                'Content-Type': 'application/json',
+                'X-AUTH-APIKEY': api_key,
+                'X-AUTH-SIGNATURE': signature
+            }
+            
+            res = requests.post(url, data=json_body, headers=headers, timeout=10)
+            if res.status_code == 200:
+                res_data = res.json()
+                if "id" in res_data or "orders" in res_data:
+                    return {"success": True, "data": res_data}
+                return {"success": False, "error": res_data.get("message", "Unknown error")}
+            else:
+                return {"success": False, "error": f"CoinDCX API Error: {res.text}"}
+        except Exception as e:
+            return {"success": False, "error": f"Connection exception: {e}"}
+
+    @staticmethod
     def place_paper_order(db: Session, symbol: str, order_type: str, quantity: float, stop_loss: float = None, target: float = None) -> dict:
-        """Executes a trade, validating margins, VIX volatility limits, drawdown levels and transaction costs."""
+        """Executes a live trade via connected broker API (enforcing live-only trading)."""
         user = PortfolioManager.get_or_create_user(db)
         
-        # 1. Volatility Halt check (VIX > 25)
+        # 1. Broker Connection Validation (Strictly Enforce Live Broker)
+        conn = db.query(models.BrokerConnection).filter(
+            models.BrokerConnection.user_id == user.id,
+            models.BrokerConnection.is_active == True
+        ).first()
+        
+        if not conn:
+            return {
+                "success": False, 
+                "error": "Order rejected: No broker connected. Please connect your broker API (Angel One or CoinDCX) to execute live trades."
+            }
+        
+        # 2. Volatility Halt check (VIX > 25)
         vix = market_engine.prices.get("VIX", 13.5)
         if vix > 25.0:
             return {"success": False, "error": f"Order rejected: Market volatility VIX is too high ({vix:.1f} > 25.0)"}
             
-        # 2. Bot Halt check
+        # 3. Bot Halt check
         if not user.is_bot_active:
             return {"success": False, "error": f"Bot trading suspended. Reason: {user.halt_reason}"}
 
         current_price = market_engine.prices.get(symbol, 100.0)
         total_cost = current_price * quantity
         
-        # 3. Transaction Cost Filter (only for BUY entries with specified targets)
+        # 4. Transaction Cost Filter (only for BUY entries with specified targets)
         if order_type == "BUY" and target:
             expected_profit = abs(target - current_price) * quantity
             # 0.1% estimated slippage + tax/brokerage cost
@@ -50,13 +108,21 @@ class PortfolioManager:
             if expected_profit < (est_transaction_fee * 3):
                 return {
                     "success": False, 
-                    "error": f"Order rejected: Expected profit (₹{expected_profit:.2f}) is too small compared to transaction costs (₹{est_transaction_fee*3:.2f})."
+                    "error": f"Order rejected: Expected profit (Rs.{expected_profit:.2f}) is too small compared to transaction costs (Rs.{est_transaction_fee*3:.2f})."
                 }
 
         if order_type == "BUY":
             # Check balance
             if user.balance < total_cost:
-                return {"success": False, "error": f"Insufficient funds. Required: ₹{total_cost:.2f}, Balance: ₹{user.balance:.2f}"}
+                return {"success": False, "error": f"Insufficient funds. Required: Rs.{total_cost:.2f}, Balance: Rs.{user.balance:.2f}"}
+            
+            # --- Live API Call to Broker ---
+            if conn.broker_name == "CoinDCX API":
+                res = PortfolioManager._execute_coindcx_order(
+                    conn.client_id, conn.access_token, symbol, "buy", quantity
+                )
+                if not res["success"]:
+                    return {"success": False, "error": f"CoinDCX execution failed: {res['error']}"}
             
             # Deduct balance
             user.balance -= total_cost
@@ -86,12 +152,12 @@ class PortfolioManager:
                 )
                 db.add(pos)
                 
-            # Log Trade
+            # Log Trade (Marked as LIVE)
             trade = models.Trade(
                 user_id=user.id,
                 symbol=symbol,
                 order_type="BUY",
-                trade_type="PAPER",
+                trade_type="LIVE",
                 quantity=quantity,
                 price=current_price,
                 stop_loss=stop_loss,
@@ -122,7 +188,7 @@ class PortfolioManager:
             )
             db.add(log)
             db.commit()
-            return {"success": True, "trade_id": trade.id, "message": f"Successfully bought {quantity} {symbol} at ₹{current_price:.2f}"}
+            return {"success": True, "trade_id": trade.id, "message": f"Successfully placed live order: Bought {quantity} {symbol} at Rs.{current_price:.2f}"}
             
         elif order_type == "SELL":
             pos = db.query(models.Position).filter(
@@ -133,6 +199,14 @@ class PortfolioManager:
             if not pos or pos.quantity < quantity - 1e-7:
                 return {"success": False, "error": f"Insufficient holdings. You own {pos.quantity if pos else 0} {symbol}."}
             
+            # --- Live API Call to Broker ---
+            if conn.broker_name == "CoinDCX API":
+                res = PortfolioManager._execute_coindcx_order(
+                    conn.client_id, conn.access_token, symbol, "sell", quantity
+                )
+                if not res["success"]:
+                    return {"success": False, "error": f"CoinDCX execution failed: {res['error']}"}
+
             realized_pnl = (current_price - pos.avg_price) * quantity
             user.balance += total_cost
             user.margin = user.balance
@@ -145,12 +219,12 @@ class PortfolioManager:
                 pos.pnl = (pos.current_price - pos.avg_price) * pos.quantity
                 pos.last_updated = datetime.datetime.utcnow()
                 
-            # Log Trade
+            # Log Trade (Marked as LIVE)
             trade = models.Trade(
                 user_id=user.id,
                 symbol=symbol,
                 order_type="SELL",
-                trade_type="PAPER",
+                trade_type="LIVE",
                 quantity=quantity,
                 price=current_price,
                 status="COMPLETED",
@@ -176,7 +250,7 @@ class PortfolioManager:
             # Post-trade verification check
             PortfolioManager.verify_consecutive_losses(db, user)
             
-            return {"success": True, "trade_id": trade.id, "message": f"Successfully sold {quantity} {symbol} at ₹{current_price:.2f}. P&L: ₹{realized_pnl:.2f}"}
+            return {"success": True, "trade_id": trade.id, "message": f"Successfully placed live order: Sold {quantity} {symbol} at Rs.{current_price:.2f}. P&L: Rs.{realized_pnl:.2f}"}
             
         return {"success": False, "error": "Invalid order type"}
 

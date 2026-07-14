@@ -15,6 +15,28 @@ def db_session():
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:
+        # Pre-seed user and active broker connection
+        user = models.User(
+            username="retail_investor", 
+            balance=2000.0, 
+            margin=2000.0, 
+            daily_pnl=0.0,
+            peak_value=2000.0,
+            is_bot_active=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        conn = models.BrokerConnection(
+            user_id=user.id,
+            broker_name="Angel One",
+            client_id="mock_client",
+            access_token="mock_token",
+            is_active=True
+        )
+        db.add(conn)
+        db.commit()
         yield db
     finally:
         db.close()

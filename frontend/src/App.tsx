@@ -73,6 +73,14 @@ export default function App() {
     }
   };
 
+  // Auto-switch price chart to first active symbol if the current one is delisted/swapped
+  useEffect(() => {
+    const symbols = Object.keys(marketData);
+    if (symbols.length > 0 && !symbols.includes(activeSymbol)) {
+      setActiveSymbol(symbols[0]);
+    }
+  }, [marketData, activeSymbol]);
+
   // Setup live websocket price stream
   useEffect(() => {
     fetchMarketSummary();
