@@ -64,12 +64,19 @@ manager = ConnectionManager()
 def run_portfolio_pnl_loop():
     """Loops every 1.5 seconds to compute PnL fluctuations and check SL/Target triggers."""
     print("Background portfolio P&L synchronizer running...")
+    last_sync_time = 0.0
     while market_engine.running:
         try:
             # Create a new DB session scope
             from backend.database import SessionLocal
             db = SessionLocal()
             try:
+                # Sync balance and watchlists with CoinDCX every 15 seconds
+                current_time = time.time()
+                if current_time - last_sync_time >= 15.0:
+                    market_engine.sync_with_broker(db)
+                    last_sync_time = current_time
+
                 # Update P&L
                 PortfolioManager.update_positions_pnl(db)
                 
