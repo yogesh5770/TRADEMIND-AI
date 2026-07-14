@@ -190,8 +190,36 @@ export default function App() {
   const isBrokerConnected = portfolio.connected_brokers.length > 0;
 
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ display: 'flex', flexDirection: 'column' }}>
       
+      {/* Mobile Top Header */}
+      <div className="mobile-top-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <Cpu size={22} color="var(--color-primary)" />
+          <span style={{ fontWeight: '800', fontFamily: 'var(--font-header)', fontSize: '1rem' }}>TradeMind AI</span>
+        </div>
+        <button 
+          onClick={() => setIsBrokerModalOpen(true)}
+          style={{
+            padding: '0.35rem 0.6rem',
+            fontSize: '0.7rem',
+            borderRadius: '8px',
+            border: '1px solid ' + (isBrokerConnected ? 'var(--color-success)' : 'var(--border-color)'),
+            backgroundColor: isBrokerConnected ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)',
+            color: isBrokerConnected ? 'var(--color-success)' : 'var(--text-main)',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem'
+          }}
+        >
+          <Link2 size={12} />
+          <span>{isBrokerConnected ? 'Connected' : 'Connect'}</span>
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       {/* Sidebar Panel */}
       <aside className="sidebar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2.5rem', paddingLeft: '0.5rem' }}>
@@ -378,6 +406,23 @@ export default function App() {
         onClose={() => setIsBrokerModalOpen(false)}
         onSuccess={fetchPortfolio}
       />
+      </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="mobile-bottom-nav">
+        <button onClick={() => setView('home')} className={`mobile-nav-btn ${view === 'home' ? 'active' : ''}`}>
+          <Home size={20} />
+          <span>Dashboard</span>
+        </button>
+        <button onClick={() => setView('terminal')} className={`mobile-nav-btn ${view === 'terminal' ? 'active' : ''}`}>
+          <LineChart size={20} />
+          <span>Terminal</span>
+        </button>
+        <button onClick={() => setView('lab')} className={`mobile-nav-btn ${view === 'lab' ? 'active' : ''}`}>
+          <FlaskConical size={20} />
+          <span>Research Lab</span>
+        </button>
+      </div>
       
     </div>
   );
