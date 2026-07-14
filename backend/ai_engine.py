@@ -229,11 +229,10 @@ class AIAnaEngine:
         expected_hold_mins = int((atr / max(0.01, price * 0.001)) * 12)
         
         # Calculate quantity based on ₹100 - ₹300 per asset order budget
-        # We target buying exactly 1 unit of ETFs/shares for low money users
-        quantity = 1
-        if sym in ["BTC", "ETH"]:
-            # For crypto, you can buy fractional shares. Let's allocate exactly ₹200 order size!
-            quantity = round(200.0 / price, 6)
+        is_crypto = not sym.endswith(".NS") and sym not in ["NIFTY", "VIX", "TATASTEEL", "SOUTHBANK", "JPPOWER", "SUZLON", "YESBANK", "IDEA", "PNB", "BANKBARODA", "SAIL", "NHPC"]
+        if is_crypto:
+            # For crypto, you can buy fractional shares. Let's allocate exactly ₹100 order size!
+            quantity = round(100.0 / price, 6)
         else:
             # For shares, check if price exceeds ₹300, if so, quantity is 0 (or 1 if balance permits)
             if price <= 300.0:
