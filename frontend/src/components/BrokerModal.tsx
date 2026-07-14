@@ -28,6 +28,7 @@ export const BrokerModal: React.FC<BrokerModalProps> = ({ isOpen, onClose, onSuc
     setLoading(true);
     setError('');
 
+    try {
       const response = await fetch(`${API_BASE}/api/v1/broker/connect`, {
         method: 'POST',
         headers: {
