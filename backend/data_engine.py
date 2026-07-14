@@ -60,25 +60,58 @@ class MarketDataEngine:
             return None
 
     def _fetch_coindcx_markets(self) -> list[str]:
-        """Fetches all active INR-quote markets from CoinDCX API dynamically."""
+        """Fetches all active INR-quote markets from CoinDCX API dynamically, sorted by highest 24h volume/liquidity."""
         import requests
-        url = "https://api.coindcx.com/exchange/v1/markets_details"
+        
+        ticker_url = "https://api.coindcx.com/exchange/ticker"
+        market_details_url = "https://api.coindcx.com/exchange/v1/markets_details"
+        
         try:
-            res = requests.get(url, timeout=5)
-            if res.status_code == 200:
-                markets = res.json()
-                inr_assets = []
-                for m in markets:
-                    if m.get("base_currency_short_name") == "INR" and m.get("status") == "active":
-                        base_coin = m.get("target_currency_short_name")
-                        if base_coin and base_coin not in inr_assets:
-                            inr_assets.append(base_coin)
-                popular = ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB", "SOL", "DOT", "MATIC", "LINK", "LTC", "BCH", "UNI", "AVAX", "ATOM", "ETC", "ALGO", "NEAR", "FIL"]
-                matched = [c for c in inr_assets if c in popular]
-                if len(matched) < 10:
-                    matched = inr_assets[:20]
-                return matched
-            return ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
+            details_res = requests.get(market_details_url, timeout=5)
+            if details_res.status_code != 200:
+                return ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
+                
+            markets_metadata = details_res.json()
+            active_inr_pairs = {}
+            for m in markets_metadata:
+                if m.get("base_currency_short_name") == "INR" and m.get("status") == "active":
+                    coindcx_symbol = m.get("symbol")
+                    base_coin = m.get("target_currency_short_name")
+                    if coindcx_symbol and base_coin:
+                        active_inr_pairs[coindcx_symbol] = base_coin
+            
+            ticker_res = requests.get(ticker_url, timeout=5)
+            if ticker_res.status_code == 200:
+                tickers = ticker_res.json()
+                scored_assets = []
+                for t in tickers:
+                    pair_name = t.get("market", "").replace("_", "").replace("-", "")
+                    matched_coin = None
+                    for sym, base_coin in active_inr_pairs.items():
+                        if pair_name.endswith(sym):
+                            matched_coin = base_coin
+                            break
+                            
+                    if matched_coin:
+                        volume = float(t.get("volume", 0.0))
+                        last_price = float(t.get("last_price", 0.0))
+                        notional_volume = volume * last_price
+                        
+                        scored_assets.append({
+                            "symbol": matched_coin,
+                            "volume": notional_volume
+                        })
+                
+                scored_assets.sort(key=lambda x: x["volume"], reverse=True)
+                top_60 = [item["symbol"] for item in scored_assets[:60]]
+                
+                # Always ensure core cryptos are included in active catalog
+                for core in ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]:
+                    if core in active_inr_pairs.values() and core not in top_60:
+                        top_60.append(core)
+                return top_60
+            
+            return list(active_inr_pairs.values())[:40]
         except Exception as e:
             print(f"Error fetching CoinDCX markets: {e}")
             return ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]
