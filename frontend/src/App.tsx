@@ -124,11 +124,11 @@ export default function App() {
 
     connectWebSocket();
 
-    // Poll portfolio and market data
+    // Poll portfolio and market data (optimized to 8s to prevent network congestion)
     const pollInterval = setInterval(() => {
       fetchPortfolio();
       fetchMarketSummary();
-    }, 2000);
+    }, 8000);
 
     return () => {
       if (wsRef.current) wsRef.current.close();

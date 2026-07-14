@@ -10,6 +10,7 @@ interface MarketOverviewProps {
 export const MarketOverview: React.FC<MarketOverviewProps> = ({ marketData, onSelectSymbol, activeSymbol }) => {
   const [prevPrices, setPrevPrices] = useState<Record<string, number>>({});
   const [flashStates, setFlashStates] = useState<Record<string, 'up' | 'down' | null>>({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const newFlashes: Record<string, 'up' | 'down' | null> = {};
@@ -52,10 +53,14 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ marketData, onSe
   }, [marketData]);
 
   // Dynamically pull watchable stocks (excluding indexes)
-  const equities = Object.keys(marketData).filter(sym => sym !== 'NIFTY' && sym !== 'VIX');
+  const equities = Object.keys(marketData)
+    .filter(sym => sym !== 'NIFTY' && sym !== 'VIX')
+    .filter(sym => sym.toLowerCase().includes(searchQuery.toLowerCase()));
+  
+  const displayedEquities = equities.slice(0, 40);
   
   // Extract market breadth from first available symbol payload
-  const firstSym = equities.find(sym => marketData[sym] !== undefined);
+  const firstSym = Object.keys(marketData).find(sym => sym !== 'NIFTY' && sym !== 'VIX');
   const marketBreadth = firstSym ? (marketData[firstSym]?.market_breadth || 60.0) : 60.0;
 
   return (
@@ -114,15 +119,33 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ marketData, onSe
 
       {/* Main Watchlist */}
       <div className="glass-panel" style={{ padding: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontFamily: 'var(--font-header)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Eye size={18} color="var(--color-primary)" />
-            <span>Broker Watchlist</span>
-          </h3>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-dark)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            <RefreshCw size={12} className="animate-spin" />
-            Broker Feed Live
-          </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ fontSize: '1.1rem', fontFamily: 'var(--font-header)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Eye size={18} color="var(--color-primary)" />
+              <span>Broker Watchlist</span>
+            </h3>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-dark)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <RefreshCw size={12} className="animate-spin" />
+              Broker Feed Live
+            </span>
+          </div>
+          <input 
+            type="text" 
+            placeholder="Search symbol (e.g. PRO, MDT)..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.45rem 0.75rem',
+              fontSize: '0.8rem',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'rgba(255,255,255,0.01)',
+              color: 'var(--text-main)',
+              outline: 'none',
+            }}
+          />
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
@@ -135,7 +158,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ marketData, onSe
             </tr>
           </thead>
           <tbody>
-            {equities.map((sym) => {
+            {displayedEquities.map((sym) => {
               const stock = marketData[sym];
               if (!stock) return null;
               
