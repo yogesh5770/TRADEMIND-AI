@@ -198,11 +198,11 @@ class AIAnaEngine:
         # Aggregate consensus score (range -6 to +6)
         total_score = trend_vote + reversal_vote + volume_vote + vol_vote + news_vote + risk_vote
         
-        # Decide Action based on consensus
+        # Decide Action based on consensus (lowered to 2 to increase high-frequency scalping opportunities)
         action = "WAIT"
-        if total_score >= 3:
+        if total_score >= 2:
             action = "BUY"
-        elif total_score <= -3:
+        elif total_score <= -2:
             action = "SELL"
             
         # Calculate overall confidence percentage

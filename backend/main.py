@@ -129,7 +129,7 @@ def run_automated_trading_loop():
                             models.Position.symbol == symbol
                         ).first()
                         
-                        if action == "BUY" and confidence >= 0.50:
+                        if action == "BUY":
                             # Automatically buy if we don't have an active position
                             if not position:
                                 res = PortfolioManager.place_paper_order(
