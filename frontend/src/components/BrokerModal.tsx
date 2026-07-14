@@ -28,7 +28,6 @@ export const BrokerModal: React.FC<BrokerModalProps> = ({ isOpen, onClose, onSuc
     setLoading(true);
     setError('');
 
-    try {
       const response = await fetch(`${API_BASE}/api/v1/broker/connect`, {
         method: 'POST',
         headers: {
@@ -37,7 +36,7 @@ export const BrokerModal: React.FC<BrokerModalProps> = ({ isOpen, onClose, onSuc
         body: JSON.stringify({
           broker_name: selectedBroker,
           client_id: clientId,
-          access_token: `mock_token_${Math.random().toString(36).substring(7)}`,
+          access_token: apiKey,
         }),
       });
 
