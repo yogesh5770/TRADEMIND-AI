@@ -4,11 +4,7 @@ import { MarketOverview } from './components/MarketOverview';
 import { PriceChart } from './components/PriceChart';
 import { BrokerModal } from './components/BrokerModal';
 
-// Auto-detects localhost vs deployed Render backend based on active domain
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:8000'
-  : 'https://trademind-ai-vptk.onrender.com';
-const WS_BASE = API_BASE.replace('https://', 'wss://').replace('http://', 'ws://');
+import { API_BASE, WS_BASE } from './config';
 
 export default function App() {
   const [isBrokerModalOpen, setIsBrokerModalOpen] = useState(false);

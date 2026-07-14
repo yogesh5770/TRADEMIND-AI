@@ -1,3 +1,5 @@
-// Central API config — reads from env var on Vercel, falls back to localhost for dev
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Central API config — auto-detects localhost vs deployed Render backend based on active domain
+export const API_BASE = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : 'https://trademind-ai-vptk.onrender.com';
 export const WS_BASE = API_BASE.replace('https://', 'wss://').replace('http://', 'ws://');
