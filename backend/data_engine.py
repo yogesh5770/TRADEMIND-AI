@@ -200,7 +200,7 @@ class MarketDataEngine:
         
         # Performance optimization: Load yfinance historical charts only for top 30 assets
         # Use fast, live-ticker-based fallbacks for the other 300+ markets to keep startup instant
-        if is_crypto and len(self.active_symbols) > 30:
+        if is_crypto and len(self.daily_historical) > 30:
             self._load_fallback_data(sym)
             return
             
