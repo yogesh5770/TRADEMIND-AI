@@ -29,6 +29,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {
+        "status": "online",
+        "message": "Welcome to TradeMind AI Real-time Automated Engine API",
+        "docs_url": "/docs"
+    }
+
 # Active WebSocket connections
 class ConnectionManager:
     def __init__(self):
