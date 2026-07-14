@@ -40,7 +40,12 @@ export default function App() {
         setPortfolio(data);
         if (data.trades && data.trades.length > 0) {
           const recentLogs = data.trades.slice(0, 15).map((t: any) => {
-            const timeStr = new Date(t.timestamp * 1000).toLocaleTimeString();
+            let timeStr = 'Recent';
+            if (t.timestamp) {
+              const isNumeric = !isNaN(t.timestamp) && !isNaN(parseFloat(t.timestamp));
+              const dateObj = isNumeric ? new Date(parseFloat(t.timestamp) * 1000) : new Date(t.timestamp);
+              timeStr = isNaN(dateObj.getTime()) ? 'Recent' : dateObj.toLocaleTimeString();
+            }
             return `[${timeStr}] Auto-traded ${t.quantity.toFixed(4)} ${t.symbol} @ Rs.${t.price.toFixed(2)} (${t.order_type})`;
           });
           setTradeLogs(recentLogs);
