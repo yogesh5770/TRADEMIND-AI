@@ -103,19 +103,17 @@ class MarketDataEngine:
                         })
                 
                 scored_assets.sort(key=lambda x: x["volume"], reverse=True)
-                top_60 = []
+                all_active = []
                 for item in scored_assets:
                     sym = item["symbol"]
-                    if sym not in top_60:
-                        top_60.append(sym)
-                    if len(top_60) >= 60:
-                        break
+                    if sym not in all_active:
+                        all_active.append(sym)
                 
                 # Always ensure core cryptos are included in active catalog
                 for core in ["BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"]:
-                    if core in active_inr_pairs.values() and core not in top_60:
-                        top_60.append(core)
-                return top_60
+                    if core in active_inr_pairs.values() and core not in all_active:
+                        all_active.append(core)
+                return all_active
             
             return list(active_inr_pairs.values())[:40]
         except Exception as e:
@@ -200,6 +198,12 @@ class MarketDataEngine:
         is_crypto = sym in self.cryptos
         ysym = f"{sym}-USD" if is_crypto else f"{sym}.NS"
         
+        # Performance optimization: Load yfinance historical charts only for top 30 assets
+        # Use fast, live-ticker-based fallbacks for the other 300+ markets to keep startup instant
+        if is_crypto and len(self.active_symbols) > 30:
+            self._load_fallback_data(sym)
+            return
+            
         try:
             ticker = yf.Ticker(ysym)
             df_daily = ticker.history(period="3mo", interval="1d")
