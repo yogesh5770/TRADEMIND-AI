@@ -188,22 +188,24 @@ export default function App() {
           </div>
 
           {/* Broker Status */}
-          <button 
-            onClick={() => setIsBrokerModalOpen(true)}
-            className="btn-outline"
+          {/* Broker Status Badge */}
+          <div
             style={{
               fontSize: '0.75rem',
+              fontWeight: 'bold',
               display: 'flex',
               alignItems: 'center',
               gap: '0.4rem',
               padding: '0.4rem 0.8rem',
-              borderColor: isBrokerConnected ? 'var(--color-success)' : 'var(--border-color)',
-              color: isBrokerConnected ? 'var(--color-success)' : 'var(--text-main)',
+              borderRadius: '12px',
+              border: '1px solid var(--color-success)',
+              backgroundColor: 'rgba(16, 185, 129, 0.05)',
+              color: 'var(--color-success)',
             }}
           >
             <Link2 size={12} />
-            <span>{isBrokerConnected ? `Connected: ${connectedBrokerName}` : 'Connect Broker'}</span>
-          </button>
+            <span>Connected: CoinDCX API</span>
+          </div>
         </div>
       </header>
 
@@ -376,13 +378,6 @@ export default function App() {
 
         </div>
       </main>
-
-      {/* Broker connection OAuth dialog */}
-      <BrokerModal 
-        isOpen={isBrokerModalOpen}
-        onClose={() => setIsBrokerModalOpen(false)}
-        onSuccess={fetchPortfolio}
-      />
       
     </div>
   );
