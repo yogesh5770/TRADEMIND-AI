@@ -216,11 +216,17 @@ def run_telegram_polling_loop():
                                     if not pos_text:
                                         pos_text = "No active positions."
                                         
-                                    reply = f"📊 <b>TradeMind Bot Status Summary</b>\n\n" \
-                                            f"Wallet Balance: <b>Rs.{user.balance:.2f}</b>\n" \
+                                    free_bal = user.balance
+                                    invested_bal = sum(p.quantity * p.avg_price for p in positions)
+                                    total_bal = free_bal + invested_bal
+
+                                    reply = f"📊 <b>TradeMind Financial Summary</b>\n\n" \
+                                            f"💰 Total Value: <b>Rs.{total_bal:.2f}</b>\n" \
+                                            f"📈 Invested Capital: <b>Rs.{invested_bal:.2f}</b>\n" \
+                                            f"💵 Free Cash Balance: <b>Rs.{free_bal:.2f}</b>\n\n" \
                                             f"Bot State: <b>{'ACTIVE 🟢' if user.is_bot_active else 'HALTED 🔴'}</b>\n" \
                                             f"Halt Reason: {user.halt_reason or 'None'}\n\n" \
-                                            f"<b>Open Positions:</b>\n{pos_text}"
+                                            f"<b>Active Holdings:</b>\n{pos_text}"
                                     send_telegram_notification(reply)
                                 except Exception as ex:
                                     print(f"Error compiling status response: {ex}")
