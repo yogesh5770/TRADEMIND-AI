@@ -24,8 +24,8 @@ class MarketDataEngine:
         self.precisions = {}           # Stores target currency decimal precisions
         
         
-    def _fetch_coindcx_balance(self, api_key: str, api_secret: str) -> float:
-        """Fetches the real INR wallet balance from the CoinDCX API using HMAC signature."""
+    def _fetch_coindcx_balances_raw(self, api_key: str, api_secret: str) -> list:
+        """Fetches the raw wallet balances list from the CoinDCX API using HMAC signature."""
         import hmac
         import hashlib
         import json
@@ -52,14 +52,20 @@ class MarketDataEngine:
             
             res = requests.post(url, data=json_body, headers=headers, timeout=5)
             if res.status_code == 200:
-                balances = res.json()
-                for item in balances:
-                    if item.get("currency") == "INR":
-                        return float(item.get("balance", 0.0))
+                return res.json()
             return None
         except Exception as e:
-            print(f"Error calling CoinDCX API: {e}")
+            print(f"Error calling CoinDCX API raw balances: {e}")
             return None
+
+    def _fetch_coindcx_balance(self, api_key: str, api_secret: str) -> float:
+        """Fetches the real INR wallet balance from the CoinDCX API using raw helper."""
+        balances = self._fetch_coindcx_balances_raw(api_key, api_secret)
+        if balances:
+            for item in balances:
+                if item.get("currency") == "INR":
+                    return float(item.get("balance", 0.0))
+        return None
 
     def _fetch_coindcx_markets(self) -> list[str]:
         """Fetches all active INR-quote markets from CoinDCX API dynamically, sorted by highest 24h volume/liquidity."""
@@ -161,16 +167,42 @@ class MarketDataEngine:
         elif conn.broker_name == "CoinDCX API":
             broker_assets = self._fetch_coindcx_markets()
             self.cryptos = set(broker_assets)
-            # Fetch user balance directly from the real CoinDCX API using credentials
-            real_bal = self._fetch_coindcx_balance(conn.client_id, conn.access_token)
-            if real_bal is not None:
+            # Fetch user balances directly from the real CoinDCX API using credentials
+            raw_balances = self._fetch_coindcx_balances_raw(conn.client_id, conn.access_token)
+            if raw_balances:
+                real_bal = 0.0
+                for item in raw_balances:
+                    if item.get("currency") == "INR":
+                        real_bal = float(item.get("balance", 0.0))
                 user.balance = real_bal
                 user.margin = real_bal
                 user.peak_value = real_bal
                 user.is_bot_active = True
                 user.halt_reason = None
+                
+                # Import models and sync user holdings
+                from backend import models
+                db.query(models.Position).filter(models.Position.user_id == user.id).delete()
+                
+                for item in raw_balances:
+                    currency = item.get("currency")
+                    balance = float(item.get("balance", 0.0))
+                    if currency != "INR" and balance > 0.000001:
+                        current_price = self.prices.get(currency) or 100.0
+                        if currency == "BTC":
+                            current_price = self.prices.get("BTC", 5382316.39)
+                            
+                        pos = models.Position(
+                            user_id=user.id,
+                            symbol=currency,
+                            quantity=balance,
+                            avg_price=current_price,
+                            current_price=current_price,
+                            pnl=0.0
+                        )
+                        db.add(pos)
                 db.commit()
-                print(f"Updated user balance from real CoinDCX wallet: Rs.{real_bal:.2f} (Halt cleared and peak_value reset).")
+                print(f"Synced user balances from CoinDCX. Cash: Rs.{real_bal:.2f}. Active positions reconstructed.")
             else:
                 print("Could not retrieve real CoinDCX balance (mock keys or timeout). Keeping existing balance.")
         else:
