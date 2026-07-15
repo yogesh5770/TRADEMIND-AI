@@ -1,4 +1,10 @@
-import os
+# Load environment variables manually from .env file if it exists
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        for line in f:
+            if "=" in line and not line.strip().startswith("#"):
+                key, val = line.strip().split("=", 1)
+                os.environ[key] = val
 
 class Settings:
     PROJECT_NAME: str = "TradeMind AI"
