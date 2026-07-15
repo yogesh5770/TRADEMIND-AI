@@ -231,8 +231,8 @@ class AIAnaEngine:
         # Calculate quantity based on ₹100 - ₹300 per asset order budget
         is_crypto = not sym.endswith(".NS") and sym not in ["NIFTY", "VIX", "TATASTEEL", "SOUTHBANK", "JPPOWER", "SUZLON", "YESBANK", "IDEA", "PNB", "BANKBARODA", "SAIL", "NHPC"]
         if is_crypto:
-            # For crypto, you can buy fractional shares. Let's allocate exactly ₹100 order size!
-            quantity = round(100.0 / price, 6)
+            # For crypto, you can buy fractional shares. Let's allocate exactly ₹105 order size!
+            quantity = round(105.0 / price, 6)
         else:
             # For shares, check if price exceeds ₹300, if so, quantity is 0 (or 1 if balance permits)
             if price <= 300.0:

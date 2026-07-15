@@ -118,29 +118,22 @@ class PortfolioManager:
         current_price = market_engine.prices.get(symbol, 100.0)
         total_cost = current_price * quantity
         
-        # 4. Transaction Cost Filter (only for BUY entries with specified targets)
-        if order_type == "BUY" and target:
-            expected_profit = abs(target - current_price) * quantity
-            # 0.1% estimated slippage + tax/brokerage cost
-            est_transaction_fee = total_cost * 0.001
-            
-            # Rejection boundary: expected profit must exceed 3x transaction fees
-            if expected_profit < (est_transaction_fee * 3):
-                return {
-                    "success": False, 
-                    "error": f"Order rejected: Expected profit (Rs.{expected_profit:.2f}) is too small compared to transaction costs (Rs.{est_transaction_fee*3:.2f})."
-                }
+        # 4. Transaction Cost Filter (Bypassed for small-capital trading setups)
+        # Expected profit check removed to maximize entry trigger frequency
 
         if order_type == "BUY":
-            # Auto-scale quantity if total cost exceeds available balance
-            max_alloc = user.balance * 0.95
+            # Enforce CoinDCX target currency decimal precision for order quantity
+            precision = market_engine.precisions.get(symbol, 6)
+            quantity = round(quantity, precision)
+            total_cost = current_price * quantity
+
+            # Auto-scale quantity if total cost exceeds available balance (allocating 100% of balance to meet CoinDCX min notional)
+            max_alloc = user.balance
             if total_cost > max_alloc:
-                # Scale quantity down to fit 95% of available balance
                 is_crypto = not symbol.endswith(".NS") and symbol not in ["NIFTY", "VIX", "TATASTEEL", "SOUTHBANK", "JPPOWER", "SUZLON", "YESBANK", "IDEA", "PNB", "BANKBARODA", "SAIL", "NHPC"]
                 if is_crypto:
-                    quantity = round(max_alloc / current_price, 6)
+                    quantity = round(max_alloc / current_price, precision)
                 else:
-                    # For stocks, floor to nearest whole share
                     quantity = int(max_alloc / current_price)
                 total_cost = current_price * quantity
                 

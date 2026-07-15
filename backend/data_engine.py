@@ -21,6 +21,8 @@ class MarketDataEngine:
         self.thread = None
         self.active_symbols = []       # Populated dynamically by Broker API only
         self.cryptos = {"BTC", "ETH", "ADA", "XRP", "TRX", "DOGE", "SHIB"}
+        self.precisions = {}           # Stores target currency decimal precisions
+        
         
     def _fetch_coindcx_balance(self, api_key: str, api_secret: str) -> float:
         """Fetches the real INR wallet balance from the CoinDCX API using HMAC signature."""
@@ -77,8 +79,10 @@ class MarketDataEngine:
                 if m.get("base_currency_short_name") == "INR" and m.get("status") == "active":
                     coindcx_symbol = m.get("symbol")
                     base_coin = m.get("target_currency_short_name")
+                    precision = m.get("target_currency_precision", 6)
                     if coindcx_symbol and base_coin:
                         active_inr_pairs[coindcx_symbol] = base_coin
+                        self.precisions[base_coin] = int(precision)
             
             ticker_res = requests.get(ticker_url, timeout=5)
             if ticker_res.status_code == 200:
