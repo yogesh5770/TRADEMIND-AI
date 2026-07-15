@@ -251,11 +251,13 @@ export default function App() {
               </div>
 
               <div className="metric-card" style={{ borderRight: '1px solid var(--border-color)', paddingRight: '1rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500' }}>Today's Scalping P&L</span>
-                <span className="metric-value" style={{ color: portfolio.daily_pnl >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                  ₹{portfolio.daily_pnl >= 0 ? '+' : ''}{portfolio.daily_pnl.toFixed(2)}
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500' }}>Total Account P&L</span>
+                <span className="metric-value" style={{ color: (portfolio.total_value - 200.0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                  ₹{(portfolio.total_value - 200.0) >= 0 ? '+' : ''}{(portfolio.total_value - 200.0).toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Real-time floating gains</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  Account Value: ₹{portfolio.total_value.toFixed(2)} (Deposit: ₹200)
+                </span>
               </div>
 
               <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', justifySelf: 'center', alignSelf: 'center' }}>

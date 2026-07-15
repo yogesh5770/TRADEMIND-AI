@@ -124,11 +124,16 @@ class PortfolioManager:
         if order_type == "BUY":
             # Enforce CoinDCX target currency decimal precision for order quantity
             precision = market_engine.precisions.get(symbol, 6)
+            
+            # Enforce minimum order value of ₹103.0 to safely clear CoinDCX's ₹100 minimum limit
+            if (current_price * quantity) < 103.0:
+                quantity = round(103.0 / current_price, precision)
+                
             quantity = round(quantity, precision)
             total_cost = current_price * quantity
 
-            # Auto-scale quantity if total cost exceeds available balance (allocating 100% of balance to meet CoinDCX min notional)
-            max_alloc = user.balance
+            # Auto-scale quantity if total cost exceeds available balance (allocating 100% of balance minus a safety buffer)
+            max_alloc = max(0.0, user.balance - 0.50)
             if total_cost > max_alloc:
                 is_crypto = not symbol.endswith(".NS") and symbol not in ["NIFTY", "VIX", "TATASTEEL", "SOUTHBANK", "JPPOWER", "SUZLON", "YESBANK", "IDEA", "PNB", "BANKBARODA", "SAIL", "NHPC"]
                 if is_crypto:
@@ -137,8 +142,8 @@ class PortfolioManager:
                     quantity = int(max_alloc / current_price)
                 total_cost = current_price * quantity
                 
-            if quantity <= 0 or user.balance < total_cost:
-                return {"success": False, "error": f"Insufficient funds. Insufficient balance to purchase {symbol}. Balance: Rs.{user.balance:.2f}"}
+            if quantity <= 0 or (user.balance - total_cost) < -0.01:
+                return {"success": False, "error": f"Insufficient funds. Insufficient balance to purchase {symbol}. Balance: Rs.{user.balance:.2f}, Cost: Rs.{total_cost:.2f}"}
             
             # --- Live API Call to Broker ---
             if conn.broker_name == "CoinDCX API":
