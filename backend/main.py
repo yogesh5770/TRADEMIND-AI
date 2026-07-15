@@ -9,7 +9,7 @@ from backend.config import settings
 from backend.database import engine, Base, get_db
 from backend.data_engine import market_engine
 from backend.ai_engine import AIAnaEngine
-from backend.portfolio_manager import PortfolioManager
+from backend.portfolio_manager import PortfolioManager, send_telegram_notification
 from backend import models
 from backend.backtest_engine import BacktestEngine
 from backend.self_evaluation import SelfEvaluationEngine
@@ -29,13 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {
-        "status": "online",
-        "message": "Welcome to TradeMind AI Real-time Automated Engine API",
-        "docs_url": "/docs"
-    }
+
 
 # Active WebSocket connections
 class ConnectionManager:
@@ -106,13 +100,21 @@ def run_automated_trading_loop():
             try:
                 user = PortfolioManager.get_or_create_user(db)
                 if user.is_bot_active:
+                    recommendations = AIAnaEngine.generate_recommendations()
+                    signals = [r for r in recommendations if r["action"] in ["BUY", "SELL"]]
+                    
                     # Broadcast real-time AI scanning heartbeat to the website console
+                    msg_text = f"AI Consensus Engine scanning {len(market_engine.active_symbols)} CoinDCX assets... "
+                    if signals:
+                        msg_text += f"Detected {len(signals)} potential setup(s). Evaluating triggers..."
+                    else:
+                        msg_text += "No signals. Re-evaluating setups."
+                        
                     asyncio.run(manager.broadcast({
                         "type": "AUTO_ORDER",
-                        "message": f"AI Consensus Engine scanning {len(market_engine.active_symbols)} CoinDCX assets... No signals. Re-evaluating setups.",
+                        "message": msg_text,
                         "timestamp": time.time()
                     }))
-                    recommendations = AIAnaEngine.generate_recommendations()
                     for rec in recommendations:
                         symbol = rec["symbol"]
                         action = rec["action"]
@@ -148,6 +150,8 @@ def run_automated_trading_loop():
                                         "message": f"Bought {quantity} {symbol} at Rs.{price:.2f} (Confidence: {confidence*100:.0f}%)",
                                         "timestamp": time.time()
                                     }))
+                                else:
+                                    print(f"[AUTO-BOT] Failed to place BUY order for {symbol}: {res.get('error')}")
                                     
                         elif action == "SELL":
                             # Automatically sell if we have a position
@@ -165,11 +169,66 @@ def run_automated_trading_loop():
                                         "message": f"Sold {position.quantity} {symbol} at Rs.{price:.2f} (AI Sell Signal)",
                                         "timestamp": time.time()
                                     }))
+                                else:
+                                    print(f"[AUTO-BOT] Failed to place SELL order for {symbol}: {res.get('error')}")
             finally:
                 db.close()
         except Exception as e:
             print(f"Error in automated trading loop: {e}")
         time.sleep(1.0)
+
+def run_telegram_polling_loop():
+    """Polls Telegram for user commands like /status to allow remote query."""
+    import os
+    import requests
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        print("[TELEGRAM] Missing Bot Token or Chat ID. Polling disabled.")
+        return
+    print("[TELEGRAM] Interactive command polling loop active...")
+    last_update_id = 0
+    while market_engine.running:
+        try:
+            url = f"https://api.telegram.org/bot{token}/getUpdates"
+            params = {"offset": last_update_id + 1, "timeout": 8}
+            res = requests.get(url, params=params, timeout=12)
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("ok"):
+                    for update in data.get("result", []):
+                        last_update_id = update["update_id"]
+                        message = update.get("message", {})
+                        from_user = message.get("from", {})
+                        text = message.get("text", "").strip()
+                        
+                        # Only respond if the message comes from the authorized chat ID owner
+                        if str(from_user.get("id")) == str(chat_id):
+                            if text == "/status":
+                                from backend.database import SessionLocal
+                                db = SessionLocal()
+                                try:
+                                    user = PortfolioManager.get_or_create_user(db)
+                                    positions = db.query(models.Position).filter(models.Position.user_id == user.id).all()
+                                    pos_text = ""
+                                    for p in positions:
+                                        pos_text += f"• {p.symbol}: {p.quantity:.6f} @ Rs.{p.avg_price:.2f} (P&L: Rs.{p.pnl:+.2f})\n"
+                                    if not pos_text:
+                                        pos_text = "No active positions."
+                                        
+                                    reply = f"📊 <b>TradeMind Bot Status Summary</b>\n\n" \
+                                            f"Wallet Balance: <b>Rs.{user.balance:.2f}</b>\n" \
+                                            f"Bot State: <b>{'ACTIVE 🟢' if user.is_bot_active else 'HALTED 🔴'}</b>\n" \
+                                            f"Halt Reason: {user.halt_reason or 'None'}\n\n" \
+                                            f"<b>Open Positions:</b>\n{pos_text}"
+                                    send_telegram_notification(reply)
+                                except Exception as ex:
+                                    print(f"Error compiling status response: {ex}")
+                                finally:
+                                    db.close()
+        except Exception as e:
+            print(f"Error in Telegram polling loop: {e}")
+        time.sleep(2.0)
 
 # Thread listener that acts as a callback target for our data engine ticks
 def handle_live_tick(tick_info: dict):
@@ -240,6 +299,9 @@ def startup_event():
     # Start automated trading bot loop thread
     bot_thread = threading.Thread(target=run_automated_trading_loop, daemon=True)
     bot_thread.start()
+    # Start interactive Telegram command listener
+    tg_thread = threading.Thread(target=run_telegram_polling_loop, daemon=True)
+    tg_thread.start()
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -449,6 +511,21 @@ def get_portfolio_evaluation(db: Session = Depends(get_db)):
     return {"report": report_md}
 
 
+
+# Serve React static build if dist exists
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+dist_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dist")
+if os.path.exists(dist_dir):
+    app.mount("/assets", StaticFiles(directory=os.path.join(dist_dir, "assets")), name="assets")
+    
+    @app.get("/{catchall:path}")
+    async def serve_react(catchall: str):
+        if catchall.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        return FileResponse(os.path.join(dist_dir, "index.html"))
 
 if __name__ == "__main__":
     import uvicorn

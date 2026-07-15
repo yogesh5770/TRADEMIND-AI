@@ -1,8 +1,28 @@
 from sqlalchemy.orm import Session
 import datetime
 import random
+import os
+import requests
 from backend import models
 from backend.data_engine import market_engine
+
+def send_telegram_notification(message: str):
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    try:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+        # Timeout quickly to avoid blocking critical trade execution threads
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Telegram notification failed: {e}")
+
 
 class PortfolioManager:
     @staticmethod
@@ -199,6 +219,16 @@ class PortfolioManager:
             )
             db.add(log)
             db.commit()
+            
+            # Send Telegram Notification
+            msg = f"🟢 <b>BUY ORDER EXECUTED</b>\n\n" \
+                  f"Asset: <b>{symbol}</b>\n" \
+                  f"Quantity: {quantity:.6f}\n" \
+                  f"Price: Rs.{current_price:.2f}\n" \
+                  f"Stop Loss: Rs.{stop_loss:.2f if stop_loss else 0.0:.2f}\n" \
+                  f"Target: Rs.{target:.2f if target else 0.0:.2f}"
+            send_telegram_notification(msg)
+            
             return {"success": True, "trade_id": trade.id, "message": f"Successfully placed live order: Bought {quantity} {symbol} at Rs.{current_price:.2f}"}
             
         elif order_type == "SELL":
@@ -261,6 +291,14 @@ class PortfolioManager:
             # Post-trade verification check
             PortfolioManager.verify_consecutive_losses(db, user)
             
+            # Send Telegram Notification
+            msg = f"🔴 <b>SELL ORDER EXECUTED</b>\n\n" \
+                  f"Asset: <b>{symbol}</b>\n" \
+                  f"Quantity: {quantity:.6f}\n" \
+                  f"Price: Rs.{current_price:.2f}\n" \
+                  f"Realized P&L: Rs.{realized_pnl:+.2f}"
+            send_telegram_notification(msg)
+            
             return {"success": True, "trade_id": trade.id, "message": f"Successfully placed live order: Sold {quantity} {symbol} at Rs.{current_price:.2f}. P&L: Rs.{realized_pnl:.2f}"}
             
         return {"success": False, "error": "Invalid order type"}
@@ -297,6 +335,7 @@ class PortfolioManager:
             if drawdown_pct > 95.0:
                 user.is_bot_active = False
                 user.halt_reason = f"Max Drawdown (95.0%) breached. Peak: ₹{user.peak_value:.2f}, Current: ₹{total_portfolio_value:.2f} ({drawdown_pct:.1f}% drop)"
+                send_telegram_notification(f"⚠️ <b>BOT HALTED: MAX DRAWDOWN REACHED</b>\n\nPeak: ₹{user.peak_value:.2f}\nCurrent: ₹{total_portfolio_value:.2f}\nDrop: {drawdown_pct:.1f}%")
                 PortfolioManager.square_off_all_positions(db, user, "MAX_DRAWDOWN")
             
         daily_loss_pct = 0.0
@@ -305,6 +344,7 @@ class PortfolioManager:
             if daily_loss_pct < -95.0:
                 user.is_bot_active = False
                 user.halt_reason = f"Daily Loss limit (95.0%) breached. Current daily loss: {daily_loss_pct:.1f}%"
+                send_telegram_notification(f"⚠️ <b>BOT HALTED: DAILY LOSS LIMIT REACHED</b>\n\nLoss: {daily_loss_pct:.1f}%")
                 PortfolioManager.square_off_all_positions(db, user, "DAILY_LOSS_LIMIT")
 
         db.commit()
@@ -322,6 +362,7 @@ class PortfolioManager:
             if losses_count == 3:
                 user.is_bot_active = False
                 user.halt_reason = "Trading halted due to 3 consecutive losing trades."
+                send_telegram_notification("⚠️ <b>BOT HALTED: CONSECUTIVE LOSS LIMIT</b>\n\nBot has suspended trading temporarily to protect capital after 3 consecutive losses.")
                 db.commit()
 
     @staticmethod
