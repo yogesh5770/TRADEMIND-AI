@@ -115,6 +115,31 @@ def run_automated_trading_loop():
                         "message": msg_text,
                         "timestamp": time.time()
                     }))
+                    # Opportunity Cost Rebalancing: If cash is low and we have active positions,
+                    # check if there's a high-confidence setup elsewhere to cycle capital.
+                    positions = db.query(models.Position).filter(models.Position.user_id == user.id).all()
+                    if user.balance < 101.0 and positions:
+                        buy_signals = [r for r in recommendations if r["action"] == "BUY" and r["symbol"] not in [p.symbol for p in positions]]
+                        if buy_signals:
+                            buy_signals.sort(key=lambda x: x["confidence"], reverse=True)
+                            best_setup = buy_signals[0]
+                            if best_setup["confidence"] >= 0.67:
+                                for pos in positions:
+                                    print(f"[OPPORTUNITY-EXIT] Selling {pos.symbol} at market to buy {best_setup['symbol']}")
+                                    res = PortfolioManager.place_paper_order(
+                                        db,
+                                        symbol=pos.symbol,
+                                        order_type="SELL",
+                                        quantity=pos.quantity
+                                    )
+                                    if res.get("success"):
+                                        send_telegram_notification(
+                                            f"🔄 <b>Opportunity Rebalance</b>\n"
+                                            f"Sold {pos.symbol} at Rs.{pos.current_price:.2f} (Break-even/Market) to free up funds for a higher-probability setup in <b>{best_setup['symbol']}</b>."
+                                        )
+                                        db.refresh(user)
+                                        break
+
                     for rec in recommendations:
                         symbol = rec["symbol"]
                         action = rec["action"]
