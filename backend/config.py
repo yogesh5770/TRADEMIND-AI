@@ -1,3 +1,5 @@
+import os
+
 # Load environment variables manually from .env file if it exists
 if os.path.exists(".env"):
     with open(".env", "r") as f:
