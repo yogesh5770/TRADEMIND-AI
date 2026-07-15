@@ -180,8 +180,7 @@ class MarketDataEngine:
                 user.is_bot_active = True
                 user.halt_reason = None
                 
-                # Import models and sync user holdings
-                from backend import models
+                # Sync user holdings
                 db.query(models.Position).filter(models.Position.user_id == user.id).delete()
                 
                 for item in raw_balances:
