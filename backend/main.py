@@ -115,35 +115,7 @@ def run_automated_trading_loop():
                         "message": msg_text,
                         "timestamp": time.time()
                     }))
-                    # Opportunity Cost Rebalancing: If cash is low and we have active positions,
-                    # check if there's an extremely high-confidence setup elsewhere to cycle capital.
-                    positions = db.query(models.Position).filter(models.Position.user_id == user.id).all()
-                    if user.balance < 101.0 and positions:
-                        buy_signals = [r for r in recommendations if r["action"] == "BUY" and r["symbol"] not in [p.symbol for p in positions]]
-                        if buy_signals:
-                            buy_signals.sort(key=lambda x: x["confidence"], reverse=True)
-                            best_setup = buy_signals[0]
-                            # Require a perfect 5/6 score (83.3% confidence or higher) to cycle capital
-                            if best_setup["confidence"] >= 0.83:
-                                for pos in positions:
-                                    import datetime
-                                    # Ensure position has been held for at least 15 minutes (900s) to prevent churning
-                                    held_seconds = (datetime.datetime.utcnow() - pos.last_updated).total_seconds()
-                                    if held_seconds >= 900.0:
-                                        print(f"[OPPORTUNITY-EXIT] Rebalancing: Selling {pos.symbol} (held {held_seconds:.0f}s) at market to buy {best_setup['symbol']}")
-                                        res = PortfolioManager.place_paper_order(
-                                            db,
-                                            symbol=pos.symbol,
-                                            order_type="SELL",
-                                            quantity=pos.quantity
-                                        )
-                                        if res.get("success"):
-                                            send_telegram_notification(
-                                                f"🔄 <b>Opportunity Rebalance</b>\n"
-                                                f"Sold {pos.symbol} at Rs.{pos.current_price:.2f} (Break-even/Market) after holding for {held_seconds/60:.1f}m to fund a high-probability trade in <b>{best_setup['symbol']}</b>."
-                                            )
-                                            db.refresh(user)
-                                            break
+                    # Opportunity Cost Rebalancing disabled to prevent high-frequency churning of capital.
 
                     for rec in recommendations:
                         symbol = rec["symbol"]

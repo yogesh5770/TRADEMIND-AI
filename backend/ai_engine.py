@@ -198,11 +198,11 @@ class AIAnaEngine:
         # Aggregate consensus score (range -6 to +6)
         total_score = trend_vote + reversal_vote + volume_vote + vol_vote + news_vote + risk_vote
         
-        # Decide Action based on consensus (lowered to 2 to increase high-frequency scalping opportunities)
+        # Decide Action based on consensus (raised to 3 to filter out small moves and focus on strong trends)
         action = "WAIT"
-        if total_score >= 2:
+        if total_score >= 3:
             action = "BUY"
-        elif total_score <= -2:
+        elif total_score <= -3:
             action = "SELL"
             
         # Calculate overall confidence percentage
@@ -212,18 +212,18 @@ class AIAnaEngine:
         price = data["price"]
         atr = data["indicators"]["atr"]
         
-        # Expected Move & Risk calculations (Tightened 3.5x for High-Frequency Scalping)
-        expected_move_pct = round((atr * 0.7) / price * 100, 2)
-        risk_pct = round((atr * 0.35) / price * 100, 2)
-        risk_reward = round(expected_move_pct / max(0.1, risk_pct), 1)
+        # Expected Move & Risk calculations (Set to 3% target and 1.5% stop-loss to clear Indian TDS taxes)
+        expected_move_pct = 3.0
+        risk_pct = 1.5
+        risk_reward = 2.0
         
         # Set target / SL targets
         if action == "BUY":
-            stop_loss = price - (atr * 0.35)
-            target = price + (atr * 0.7)
+            stop_loss = price * 0.985
+            target = price * 1.03
         else:
-            stop_loss = price + (atr * 0.35)
-            target = price - (atr * 0.7)
+            stop_loss = price * 1.015
+            target = price * 0.97
             
         # Expected holding time estimation in minutes (simulated based on average timeframe targets)
         expected_hold_mins = int((atr / max(0.01, price * 0.001)) * 12)
